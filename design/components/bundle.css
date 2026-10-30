@@ -1,0 +1,92 @@
+/* Mestre — preview stylesheet. Every value is a token from tokens.json (tokens.css); this file only arranges them the way the Swift views do. */
+html, body { margin: 0; }
+body { background: var(--panel-raised); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+.ground { padding: 24px; display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+.ground.center { align-items: center; }
+
+/* The panel: NSPanel, borderless, material backdrop, continuous corners */
+.panel { width: var(--panel-width); background: var(--panel); border-radius: var(--radius-panel); box-shadow: var(--window); overflow: hidden; box-sizing: border-box; }
+.panel.inline { box-shadow: none; }
+
+/* Query row: HStack(spacing: 12), padding 20, height 60 */
+.query-row { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-4); height: var(--field-height); }
+.query-row .glyph { width: 16px; height: 16px; flex: none; color: var(--ink-secondary); }
+.query-row .glyph svg { width: 100%; height: 100%; display: block; }
+.query-row .text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.query-row .text.placeholder { color: var(--ink-tertiary); }
+.caret { display: inline-block; width: 1.5px; height: 22px; background: var(--ink); vertical-align: -5px; margin-left: 1px; }
+
+/* PanelDivider: 1pt, primary 8 %, inset 12 */
+.divider { height: 1px; background: var(--hairline); }
+
+/* Results list: LazyVStack(spacing 0), padding 8 */
+.list { padding: var(--space-2\.5); }
+.section { display: flex; align-items: flex-end; height: var(--header-height); padding: 0 var(--space-3); color: var(--ink-secondary); text-transform: uppercase; }
+
+/* ResultRow: HStack(spacing 12), padding-x 10, height 46 */
+.row { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-3); height: var(--row-height); border-radius: var(--radius-row); box-sizing: border-box; }
+.row.selected { background: var(--selection); }
+.row .main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: var(--space-2\.5); }
+.row .title { display: flex; align-items: center; gap: var(--space-2); white-space: nowrap; flex: none; }
+.row .subtitle { color: var(--ink-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.row .trailing { flex: none; display: flex; align-items: center; gap: var(--space-3); margin-left: var(--space-3\.5); }
+.dot { width: var(--dot); height: var(--dot); border-radius: 50%; background: var(--running); flex: none; }
+.kind { color: var(--ink-secondary); }
+
+/* IconTile: 32×32, radius 8, symbol 15 */
+.icon { width: var(--icon); height: var(--icon); flex: none; border-radius: var(--radius-tile); display: grid; place-items: center; }
+.icon.tile { background: var(--tile); color: var(--ink-secondary); }
+.row.selected .icon.tile, .icon.tile.selected { background: var(--selection-tile); color: var(--accent-symbol); }
+.icon svg { width: var(--symbol); height: var(--symbol); display: block; }
+.icon.app { border-radius: var(--radius-tile); }
+.icon.app svg { width: 100%; height: 100%; }
+
+/* Hint pair: label 11 + KeyHint cap */
+.hint { display: flex; align-items: center; gap: var(--space-1\.5); color: var(--ink-secondary); }
+.cap { display: inline-flex; align-items: center; justify-content: center; padding: 0 var(--space-2); min-width: var(--cap-height); height: var(--cap-height); box-sizing: border-box; border-radius: var(--radius-cap); background: var(--key-cap); box-shadow: inset 0 0 0 1px var(--key-cap-edge); color: var(--ink-secondary); }
+
+/* Actions menu (⌘K): block padding 8, rows 30 tall, padding-x 10, gap 10, radius 7 */
+.actions { padding: var(--space-2\.5); }
+.actions .section { padding: 0 var(--space-2\.5); }
+.action { display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-3); height: var(--action-row-height); border-radius: var(--radius-action); box-sizing: border-box; }
+.action.selected { background: var(--selection); }
+.action .sym { width: var(--space-4); flex: none; color: var(--ink-secondary); display: grid; place-items: center; }
+.action .sym svg { width: 13px; height: 13px; }
+.action .label { flex: 1; min-width: 0; }
+
+/* Footer: 34 tall, context left, hints right */
+.footer { display: flex; align-items: center; gap: var(--space-3\.5); padding: 0 var(--space-4); height: var(--footer-height); color: var(--ink-secondary); }
+.footer .context { display: flex; align-items: center; gap: var(--space-2); }
+.footer .context svg { width: 12px; height: 12px; }
+.footer .spacer { flex: 1; }
+
+/* Empty state: 44 tall, secondary */
+.empty { height: var(--empty-height); display: flex; align-items: center; justify-content: center; color: var(--ink-secondary); }
+
+/* Windows (Settings, Welcome): plain ground */
+.window { background: var(--panel-raised); border-radius: var(--radius-box); box-shadow: var(--window); overflow: hidden; box-sizing: border-box; }
+.titlebar { height: 28px; display: flex; align-items: center; justify-content: center; color: var(--ink-secondary); position: relative; }
+.titlebar .lights { position: absolute; left: 12px; top: 8px; display: flex; gap: 8px; }
+.titlebar .lights i { width: 12px; height: 12px; border-radius: 50%; background: var(--ink-quaternary); display: block; }
+.field { font-family: var(--font-mono); border: 1px solid var(--hairline); border-radius: var(--radius-field); background: var(--panel-raised); color: var(--ink); padding: 3px 7px; box-sizing: border-box; }
+.field.number { width: 80px; text-align: right; }
+.form-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 7px 0; }
+.form-row + .form-row { border-top: 1px solid var(--hairline); }
+.caption { color: var(--ink-secondary); }
+.caption.error { color: var(--danger); }
+
+/* Menu-bar menu */
+.menu { background: var(--panel); border-radius: var(--radius-tile); box-shadow: var(--window); padding: 5px; min-width: 220px; }
+.menu .item { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 3px 10px; border-radius: 5px; }
+.menu .item .key { color: var(--ink-secondary); }
+.menu .item.selected { background: var(--accent); color: #ffffff; }
+.menu .item.selected .key { color: #ffffff; }
+.menu .sep { height: 1px; background: var(--hairline); margin: 5px 10px; }
+
+/* Recorder (170×26, radius 6) */
+.recorder { width: 170px; height: 26px; border-radius: var(--radius-field); background: var(--panel-raised); border: 1px solid var(--hairline); display: grid; place-items: center; box-sizing: border-box; }
+.recorder.recording { border: 1.5px solid var(--accent-symbol); color: var(--ink-secondary); }
+
+/* Annotation chrome for previews (not part of the app) */
+.note { color: var(--ink-secondary); font-family: var(--font-sans); font-size: 11px; line-height: 14px; }
+.swatch-row { display: flex; gap: 12px; align-items: center; }

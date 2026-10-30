@@ -1,0 +1,93 @@
+/* Mestre — compiled from ../tokens.json; regenerate with scripts/gen-previews.py after editing tokens */
+:root, [data-theme="light"] {
+  --panel: #f4f4f5eb;
+  --panel-raised: #ffffff;
+  --ink: #000000d9;
+  --ink-secondary: #00000080;
+  --ink-tertiary: #00000042;
+  --ink-quaternary: #0000001a;
+  --hairline: #00000014;
+  --tile: #00000012;
+  --key-cap: #0000000f;
+  --key-cap-edge: var(--hairline);
+  --accent: #6b38b3;
+  --selection: #6b38b329;
+  --selection-tile: #6b38b32e;
+  --accent-symbol: var(--accent);
+  --running: #28cd41;
+  --danger: #ff3b30;
+  --mark-indigo: #29245c;
+  --mark-violet: #6b38b3;
+  --mark-spark: #ffd966;
+  --on-mark: #ffffff;
+  --window: 0 10px 40px rgba(0,0,0,0.28);
+}
+[data-theme="dark"] {
+  --panel: #2a2a2ceb;
+  --panel-raised: #323234;
+  --ink: #ffffffd9;
+  --ink-secondary: #ffffff8c;
+  --ink-tertiary: #ffffff40;
+  --ink-quaternary: #ffffff19;
+  --hairline: #ffffff14;
+  --tile: #ffffff12;
+  --key-cap: #ffffff0f;
+  --key-cap-edge: var(--hairline);
+  --accent: #a98bff;
+  --selection: #a98bff29;
+  --selection-tile: #a98bff2e;
+  --accent-symbol: var(--accent);
+  --running: #30d158;
+  --danger: #ff453a;
+  --mark-indigo: #29245c;
+  --mark-violet: #6b38b3;
+  --mark-spark: #ffd966;
+  --on-mark: #ffffff;
+  --window: 0 10px 40px rgba(0,0,0,0.55);
+}
+:root {
+  --space-px: 1px;
+  --space-1: 4px;
+  --space-1\.5: 5px;
+  --space-2: 6px;
+  --space-2\.5: 8px;
+  --space-3: 10px;
+  --space-3\.5: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-7: 28px;
+  --radius-cap: 5px;
+  --radius-action: 6px;
+  --radius-tile: 7px;
+  --radius-row: 8px;
+  --radius-box: 10px;
+  --radius-panel: 12px;
+  --panel-width: 720px;
+  --field-height: 52px;
+  --row-height: 42px;
+  --action-row-height: 30px;
+  --header-height: 24px;
+  --footer-height: 34px;
+  --empty-height: 44px;
+  --icon: 28px;
+  --symbol: 14px;
+  --cap-height: 20px;
+  --dot: 6px;
+  --max-rows: 8;
+  --vertical-position: 0.22;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-rounded: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, monospace;
+}
+.query { font-family: var(--font-sans); font-size: 20px; line-height: 26px; font-weight: 400; }
+.row-title { font-family: var(--font-sans); font-size: 14px; line-height: 18px; font-weight: 500; }
+.subtitle { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 400; }
+.action { font-family: var(--font-sans); font-size: 13px; line-height: 16px; font-weight: 400; }
+.kind { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 400; }
+.footer { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 500; }
+.section { font-family: var(--font-sans); font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: 0.5px; }
+.key-cap { font-family: var(--font-rounded); font-size: 11px; line-height: 14px; font-weight: 500; }
+.hotkey-display { font-family: var(--font-rounded); font-size: 22px; line-height: 28px; font-weight: 500; }
+.window-title { font-family: var(--font-sans); font-size: 26px; line-height: 32px; font-weight: 700; }
+.callout { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 400; }
+.field-mono { font-family: var(--font-mono); font-size: 13px; line-height: 18px; font-weight: 400; }
