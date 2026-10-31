@@ -1,0 +1,25 @@
+{
+  "name": "mestre-demo",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Demo out/mestre-demo.mp4 --codec=h264 --crf=18",
+    "render:v2": "remotion render src/index.ts DemoV2 out/mestre-demo-v2.mp4 --codec=h264 --crf=18 --gl=angle",
+    "render:v1.1": "remotion render src/index.ts DemoV1-1 out/mestre-demo-v1.1.mp4 --codec=h264 --crf=18"
+  },
+  "dependencies": {
+    "@react-three/fiber": "9.1.2",
+    "@remotion/cli": "4.0.539",
+    "@remotion/three": "4.0.539",
+    "lucide-react": "0.511.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.539",
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.0",
+    "@types/three": "0.170.0",
+    "typescript": "5.8.3"
+  }
+}
