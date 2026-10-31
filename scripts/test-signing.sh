@@ -21,7 +21,7 @@ info="$(CERTIFICATE_BASE64="$(base64 -i "$work/mestre-signing.p12")" \
 identity="$(tail -n 1 <<<"$info")"
 
 build() {
-  MESTRE_SIGN_IDENTITY="$identity" MESTRE_HARDENED_RUNTIME=1 MESTRE_VERSION="$1" MESTRE_BUILD="$2" \
+  MESTRE_SIGN_IDENTITY="$identity" MESTRE_VERSION="$1" MESTRE_BUILD="$2" \
     scripts/bundle.sh release >&2 || return 1
   codesign --verify --deep --strict build/Mestre.app
   codesign -dr - build/Mestre.app 2>&1 | grep '^designated'
@@ -37,23 +37,3 @@ grep -q 'certificate leaf' <<<"$first" || fail "the requirement doesn't name the
 [ "$first" = "$second" ] || fail "the requirement changed between builds: $second"
 [ "$(sort -u "$work/hashes" | wc -l)" -eq 2 ] || fail "both builds have the same fingerprint, so this proves nothing"
 echo "ok   two different builds share one identity"
-
-codesign -dvvv build/Mestre.app 2>&1 | grep -q 'flags=.*runtime' || fail "the hardened runtime is off"
-for inner in Versions/B/Autoupdate Versions/B/Updater.app Versions/B/XPCServices/Installer.xpc Versions/B/XPCServices/Downloader.xpc; do
-  codesign -dvvv "build/Mestre.app/Contents/Frameworks/Sparkle.framework/$inner" 2>&1 | grep -q 'flags=.*runtime' || fail "the hardened runtime is off for $inner"
-done
-codesign -d --entitlements - build/Mestre.app 2>&1 | grep -q 'automation.apple-events' || fail "the Apple events entitlement is missing"
-echo "ok   the hardened runtime is on, with the Apple events entitlement"
-
-# Library validation is the risk: under the hardened runtime, dyld refuses a framework it doesn't
-# accept, and the app dies before it starts. Sparkle is linked, so surviving launch means it loaded.
-mkdir -p "$work/config"
-XDG_CONFIG_HOME="$work/config" build/Mestre.app/Contents/MacOS/Mestre >"$work/launch.log" 2>&1 &
-pid=$!
-sleep 8
-if ! kill -0 "$pid" 2>/dev/null; then
-  cat "$work/launch.log" >&2
-  fail "the hardened app didn't survive launch"
-fi
-kill "$pid"
-echo "ok   the hardened app launches with Sparkle loaded"

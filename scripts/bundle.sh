@@ -6,8 +6,6 @@
 #   MESTRE_VERSION            visible version, from the git tag (default 0.0.0-dev)
 #   MESTRE_BUILD              build number Sparkle compares (default: commits on this branch)
 #   MESTRE_SIGN_IDENTITY      signing identity: Developer ID or self-signed (default: ad-hoc)
-#   MESTRE_HARDENED_RUNTIME   1 turns on the hardened runtime, which needs a real identity
-#   MESTRE_SIGN_TIMESTAMP     1 adds Apple's timestamp, which notarization needs
 #   MESTRE_SPARKLE_PUBLIC_KEY update key; without it the app leaves Sparkle off
 set -euo pipefail
 
@@ -45,16 +43,17 @@ fi
 
 # Sign inside out: Sparkle's helpers, its framework, then the app.
 # An ad-hoc identity is only a fingerprint of the build, so macOS drops permissions like
-# Accessibility on every rebuild. A certificate keeps them across builds. The hardened runtime stops
-# other programs injecting code to use those permissions, and it blocks Apple events unless the
-# entitlement allows them.
+# Accessibility on every rebuild. A certificate keeps them across builds. Only a Developer ID build
+# gets the hardened runtime: it would refuse to load Sparkle under a certificate with no team, and
+# it blocks Apple events unless the entitlement allows them.
 SIGN=(codesign --force --sign "$IDENTITY")
 APP_FLAGS=()
-if [ "${MESTRE_HARDENED_RUNTIME:-}" = 1 ]; then
-  SIGN+=(--options runtime)
-  APP_FLAGS=(--entitlements Resources/Mestre.entitlements)
-fi
-if [ "${MESTRE_SIGN_TIMESTAMP:-}" = 1 ]; then SIGN+=(--timestamp); fi
+case "$IDENTITY" in
+  "Developer ID"*)
+    SIGN+=(--options runtime --timestamp)
+    APP_FLAGS=(--entitlements Resources/Mestre.entitlements)
+    ;;
+esac
 sign() { "${SIGN[@]}" "$@"; }
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
 sign "$SPARKLE/XPCServices/Installer.xpc"

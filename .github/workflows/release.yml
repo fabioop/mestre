@@ -58,11 +58,7 @@ jobs:
             export CERTIFICATE_BASE64="$SIGNING_CERTIFICATE_BASE64" CERTIFICATE_PASSWORD="$SIGNING_CERTIFICATE_PASSWORD"
           fi
           identity="$(scripts/import-signing-cert.sh "$RUNNER_TEMP/signing.keychain-db" | tail -n 1)"
-          if [ "$HAS_APPLE_SECRETS" = true ]; then
-            identity="$APPLE_SIGNING_IDENTITY"
-            echo "MESTRE_SIGN_TIMESTAMP=1" >> "$GITHUB_ENV"
-          fi
-          echo "MESTRE_HARDENED_RUNTIME=1" >> "$GITHUB_ENV"
+          if [ "$HAS_APPLE_SECRETS" = true ]; then identity="$APPLE_SIGNING_IDENTITY"; fi
           echo "::add-mask::$identity"
           echo "MESTRE_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
 
