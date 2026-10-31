@@ -716,12 +716,24 @@ const ThemeGrid = () => {
   );
 };
 
-export const TilesHome = ({ style }: { style: PanelStyle }) => {
+/** Theme.swift's readableInk: black or white, whichever has more contrast on the fill. */
+const readableInk = (hex: string) => {
+  const channel = (at: number) => {
+    const value = parseInt(hex.slice(at, at + 2), 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+  return (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05) ? "#000" : "#fff";
+};
+
+/** `selected` counts as the arrow keys do: the recent apps, then the three item tiles. */
+export const TilesHome = ({ style, selected }: { style: PanelStyle; selected?: number }) => {
   const gap = 8, column = (720 - 16 - 3 * gap) / 4, rowHeight = 156;
+  const ring = (position: number, ink: string): React.CSSProperties => (position === selected ? { outline: `2px solid ${ink}`, outlineOffset: 2 } : {});
+  // PanelStyle.tile: the theme's palette, or the quiet fill when it has none.
   const tile = (index: number): React.CSSProperties => {
     const fill = style.tiles[index % style.tiles.length];
-    const dark = ["#2f6fe8", "#ff453a"].includes(fill);
-    return { background: fill, color: dark || fill === "#1c1c1e" ? "#fff" : "#000", borderRadius: style.tileRadius, boxSizing: "border-box" };
+    return { background: fill ?? style.iconTile, color: fill ? readableInk(fill) : style.ink, borderRadius: style.tileRadius, boxSizing: "border-box" };
   };
   const statusTile = (index: number, label: string, value: string) => (
     <div style={{ ...tile(index), flex: 1, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
@@ -750,9 +762,9 @@ export const TilesHome = ({ style }: { style: PanelStyle }) => {
         <div style={{ ...tile(0), flex: 1, padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ fontSize: 12, fontWeight: 600, paddingLeft: 4 }}>Recent</div>
           <div style={{ display: "flex", gap: 4, flex: 1, alignItems: "center" }}>
-            {recents.map(([name, icon]) => (
+            {recents.map(([name, icon], position) => (
               <div key={name} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 500 }}>
-                <div style={{ transform: "scale(1.5)", margin: 8 }}>{icon}</div>
+                <div style={{ transform: "scale(1.5)", margin: 8, borderRadius: 7, ...ring(position, "currentColor") }}>{icon}</div>
                 {name}
               </div>
             ))}
@@ -760,7 +772,7 @@ export const TilesHome = ({ style }: { style: PanelStyle }) => {
         </div>
       </div>
       <div style={{ display: "flex", gap, height: rowHeight }}>
-        <div style={{ ...tile(3), width: 2 * column + gap, padding: 14, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div style={{ ...tile(3), ...ring(4, style.ink), width: 2 * column + gap, padding: 14, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600 }}>
             <Coffee size={15} /> Keep Awake
           </div>
@@ -769,7 +781,7 @@ export const TilesHome = ({ style }: { style: PanelStyle }) => {
             <div style={{ fontSize: 12, fontWeight: 500 }}>until 10:26</div>
           </div>
         </div>
-        <div style={{ ...tile(4), width: column, padding: 14, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div style={{ ...tile(4), ...ring(5, style.ink), width: column, padding: 14, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600 }}>
             <Clipboard size={15} /> Clipboard
           </div>
@@ -778,7 +790,7 @@ export const TilesHome = ({ style }: { style: PanelStyle }) => {
             <div style={{ fontSize: 12, fontWeight: 500, marginTop: 3 }}>2 min ago</div>
           </div>
         </div>
-        <div style={{ ...tile(5), width: column, padding: 14, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div style={{ ...tile(5), ...ring(6, style.ink), width: column, padding: 14, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <Calculator size={16} />
           <div style={{ fontSize: 20, fontWeight: 800 }}>Calculator</div>
         </div>

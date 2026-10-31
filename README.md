@@ -1,5 +1,9 @@
 # Mestre
 
+![Mestre opens with ⌥ Space and answers as you type, then changes through its themes: mestre, ulm, putty, tiles and micro, in light and dark.](docs/media/mestre.gif)
+
+<sub>The panel in this clip is recreated from the app's theme files, with sample data.</sub>
+
 A free, open-source launcher for macOS. Fast, keyboard-first, and configured by one JSON file.
 
 *Mestre* is Portuguese for "master".

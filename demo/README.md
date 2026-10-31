@@ -8,6 +8,7 @@ npm run studio   # preview
 npm run render   # v1, the feature tour: writes out/mestre-demo.mp4
 npm run render:v1.1 # v1 refined: writes out/mestre-demo-v1.1.mp4
 npm run render:v2   # v2, one working day, in 3D: writes out/mestre-demo-v2.mp4
+npm run render:readme # the README loop, themes first: writes ../docs/media/mestre.gif (needs ffmpeg)
 ```
 
 Fonts in `public/fonts` are under the SIL Open Font License: Archivo, JetBrains Mono, Nunito. Speed figures come from `docs/development.md`; update them there first.
