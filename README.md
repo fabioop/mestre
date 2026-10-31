@@ -53,8 +53,8 @@ You can also import snippets, quicklinks and hotkeys from Raycast or Alfred unde
 Mestre needs macOS 14 or later and Apple silicon.
 
 1. Download the latest build from [Releases](https://github.com/fabioop/mestre/releases) and drag it into Applications.
-2. Open Mestre. macOS blocks the first launch, because builds aren't notarized by Apple yet.
-3. Go to System Settings › Privacy & Security, and choose **Open Anyway**.
+2. Open Mestre. macOS says "Apple could not verify" the app, because builds aren't notarized by Apple yet. Click **Done**, not Move to Trash.
+3. Go to System Settings › Privacy & Security, scroll down to Security, and choose **Open Anyway**.
 
 Mestre updates itself after that.
 
