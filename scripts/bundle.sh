@@ -28,6 +28,8 @@ if [ -n "${MESTRE_SPARKLE_PUBLIC_KEY:-}" ]; then
   /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string $MESTRE_SPARKLE_PUBLIC_KEY" "$PLIST"
 fi
 ditto ".build/$CONFIG/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
+cp LICENSE "$APP/Contents/Resources/LICENSE"
+cp .build/artifacts/sparkle/Sparkle/LICENSE "$APP/Contents/Resources/Sparkle-LICENSE"
 install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/Mestre"
 # SwiftPM puts module resources in a .bundle whose generated accessor only looks at the
 # .app root or the build directory; the app reads them from Contents/Resources instead.
