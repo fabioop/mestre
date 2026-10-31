@@ -5,6 +5,41 @@ import AppKit
 let out = URL(fileURLWithPath: CommandLine.arguments[1])
 try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
 
+/// The M from Archivo Expanded Bold (SIL OFL), as x, y and an optional quadratic control point,
+/// in units of the letter's height. Sources/MestreCore/StatusMark.swift holds the same outline.
+let markOutline: [(CGFloat, CGFloat, (CGFloat, CGFloat)?)] = [
+    (0.0000, 0.0000, nil), (0.0000, 1.0000, nil), (0.3915, 1.0000, nil), (0.5972, 0.5183, nil),
+    (0.6233, 0.4523, (0.6077, 0.4934)), (0.6555, 0.3665, (0.6389, 0.4111)), (0.6851, 0.2860, (0.6721, 0.3220)),
+    (0.6953, 0.2860, nil),
+    (0.7232, 0.3606, (0.7071, 0.3182)), (0.7556, 0.4450, (0.7392, 0.4030)), (0.7836, 0.5160, (0.7719, 0.4871)),
+    (0.9892, 1.0000, nil), (1.3712, 1.0000, nil), (1.3712, 0.0000, nil), (1.1200, 0.0000, nil), (1.1200, 0.5732, nil),
+    (1.1208, 0.6339, (1.1200, 0.6005)), (1.1229, 0.6998, (1.1215, 0.6673)), (1.1255, 0.7560, (1.1244, 0.7323)),
+    (1.1139, 0.7560, nil),
+    (1.0939, 0.6981, (1.1060, 0.7317)), (1.0696, 0.6313, (1.0817, 0.6645)), (1.0470, 0.5732, (1.0575, 0.5981)),
+    (0.7999, 0.0000, nil), (0.5621, 0.0000, nil), (0.3138, 0.5732, nil),
+    (0.2871, 0.6405, (0.3001, 0.6061)), (0.2641, 0.7056, (0.2741, 0.6750)), (0.2469, 0.7560, (0.2542, 0.7362)),
+    (0.2353, 0.7560, nil),
+    (0.2375, 0.7067, (0.2368, 0.7373)), (0.2389, 0.6417, (0.2382, 0.6761)), (0.2397, 0.5732, (0.2397, 0.6072)),
+    (0.2397, 0.0000, nil),
+]
+
+/// Fills the M with its corner at `origin`, `height` tall and 1.3712 × `height` wide.
+func fillMark(at origin: NSPoint, height: CGFloat) {
+    let path = NSBezierPath()
+    func point(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: origin.x + x * height, y: origin.y + y * height) }
+    for (index, (x, y, control)) in markOutline.enumerated() {
+        if index == 0 {
+            path.move(to: point(x, y))
+        } else if let control {
+            path.curve(to: point(x, y), controlPoint: point(control.0, control.1))
+        } else {
+            path.line(to: point(x, y))
+        }
+    }
+    path.close()
+    path.fill()
+}
+
 func draw(size: CGFloat) -> NSImage {
     let image = NSImage(size: NSSize(width: size, height: size))
     image.lockFocus()
@@ -21,20 +56,10 @@ func draw(size: CGFloat) -> NSImage {
     path.lineWidth = s * 0.008
     path.stroke()
 
-    // The M, in the proportions of the menu bar capsule: the same mark at both sizes.
-    let stroke = NSBezierPath()
-    stroke.lineWidth = rect.width * 0.105
-    stroke.lineCapStyle = .round
-    stroke.lineJoinStyle = .round
-    let left = rect.midX - rect.width * 0.25, right = rect.midX + rect.width * 0.25
-    let bottom = rect.midY - rect.height * 0.225, top = rect.midY + rect.height * 0.225
-    stroke.move(to: NSPoint(x: left, y: bottom))
-    stroke.line(to: NSPoint(x: left, y: top))
-    stroke.line(to: NSPoint(x: rect.midX, y: bottom + rect.height * 0.16))
-    stroke.line(to: NSPoint(x: right, y: top))
-    stroke.line(to: NSPoint(x: right, y: bottom))
-    NSColor(srgbRed: 0.114, green: 0.114, blue: 0.106, alpha: 1).setStroke()
-    stroke.stroke()
+    // The M, the same outline as the menu bar's.
+    let height = rect.width * 0.64 / 1.3712
+    NSColor(srgbRed: 0.114, green: 0.114, blue: 0.106, alpha: 1).setFill()
+    fillMark(at: NSPoint(x: rect.midX - rect.width * 0.32, y: rect.midY - height / 2), height: height)
     image.unlockFocus()
     return image
 }
