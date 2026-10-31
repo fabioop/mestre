@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Unit tests
+        run: swift test
+      - name: Release script tests
+        run: scripts/test-release.sh
+      - name: Bundle
+        run: scripts/bundle.sh release
+      - name: Check the signature
+        run: codesign --verify --deep --strict build/Mestre.app

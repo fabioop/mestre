@@ -163,6 +163,7 @@ and reloads it as soon as you save it in an editor. Every key is optional.
   "scripts": { "enabled": true, "items": [
     { "name": "Notes", "keyword": "nt", "command": "~/bin/notes.sh", "mode": "once", "needs": ["fs:~/Notes"] }
   ] },
+  "updates": { "check": true, "channel": "stable", "intervalHours": 24 },
   "onboarding": { "showWelcome": true },
   "debug": {
     "logTimings": false
@@ -183,13 +184,18 @@ what most people change. Technical keys live only in the file: wait times and po
 `clipboard.pollIntervalSeconds`, `files.debounceSeconds`, `files.minimumLength`,
 `dictionary.debounceSeconds`, `bookmarks.minimumLength`, `bookmarks.penalty`, `paste`,
 `shortcuts.refreshIntervalSeconds`, `windows.listRefreshSeconds`, `emoji.prefix`, script timings and
-`needs`, and `debug`.
+`needs`, `updates`, and `debug`.
 
 Each Settings page has a reset button, and General can reset everything. Resets keep your quicklinks,
 snippets, scripts, aliases and how much clipboard history is kept, and save the previous file as `config.backup.json`, which Undo puts back.
 
 `startup.launchAtLogin` registers Mestre as a login item when the file is read. Left out, it keeps
 whatever macOS has now.
+
+`updates` controls in-app updates. `check` looks for a new version every `intervalHours` (at least 1),
+which is one request to GitHub; with it off, Check for Updates… in the menu bar still works. `channel`
+is `stable` or `beta`, and `beta` also offers pre-releases. `feedURL` replaces the built-in update feed.
+Builds you make yourself have no update key, so they never check.
 
 First launch writes a file of notes only, so every key keeps its default until you set it; the
 file is written again only when a setting changes. `Show Default Config` (a command, also

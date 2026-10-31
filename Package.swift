@@ -4,6 +4,9 @@ import PackageDescription
 let package = Package(
     name: "Mestre",
     platforms: [.macOS(.v14)],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
+    ],
     targets: [
         // Pure logic (matching, ranking, indexing, key combos). Testable without launching the app.
         .target(
@@ -15,7 +18,7 @@ let package = Package(
         // The menu-bar app: AppKit shell, SwiftUI views, Carbon hotkey.
         .executableTarget(
             name: "Mestre",
-            dependencies: ["MestreCore"],
+            dependencies: ["MestreCore", .product(name: "Sparkle", package: "Sparkle")],
             path: "Sources/Mestre",
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),

@@ -7,6 +7,8 @@ make run        # builds a release .app into build/ and opens it
 make install    # copies build/Mestre.app to ~/Applications and opens it
 make test       # unit tests for the matcher and ranker
 make build      # plain debug `swift build`
+make test-release   # tests for the release scripts
+make release    # tags a version and starts the release, see releasing.md
 ```
 
 `swift run` also works for quick iteration, but launch-at-login needs the real
@@ -19,8 +21,9 @@ Sources/MestreCore   matching, ranking, indexing, key combos, config model — n
 Sources/Mestre       AppKit shell: hotkey, panel, menu bar, settings, SwiftUI views
 Tests/MestreCoreTests
 Resources/Info.plist   bundle metadata (LSUIElement = menu-bar app)
-scripts/bundle.sh      SwiftPM build → .app bundle, ad-hoc signed
+scripts/bundle.sh      SwiftPM build → .app bundle with Sparkle, ad-hoc or Developer ID signed
 scripts/test.sh        swift test with the CLT's Swift Testing paths
+scripts/release.sh     tags master; see docs/releasing.md for the rest of the release scripts
 ```
 
 ## Performance
@@ -43,3 +46,6 @@ launch), search 0.2–0.6 ms per keystroke with every provider on, index scan 21
 25 apps, ranking 1 000 long-named apps 4.9 ms per query (`make test`'s PerformanceTests prints
 it), 0.0 % CPU idle. The idle figure comes from `top`: Mestre polls nothing but the clipboard
 change counter (`clipboard.pollIntervalSeconds`), which is a single integer read.
+
+Sparkle, measured the same way (2026-10, five launches each): panel show 36 ms without it, 36 ms linked
+with no update key, 37 ms running with checks off. Search is unchanged and idle CPU stays at 0 %.

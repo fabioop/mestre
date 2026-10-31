@@ -742,6 +742,33 @@ public struct Config: Codable, Equatable, Sendable {
         public init() {}
     }
 
+    /// In-app updates through Sparkle. Only builds made with an update key can update at all.
+    public struct Updates: Codable, Equatable, Sendable {
+        public enum Channel: String, Codable, CaseIterable, Sendable { case stable, beta }
+
+        /// Look for a new version on a schedule. "Check for Updates…" works either way.
+        public var check: Bool = true
+        /// `beta` also offers pre-releases.
+        public var channel: Channel = .stable
+        /// Hours between scheduled checks; Sparkle allows no less than one.
+        public var intervalHours: Int = 24
+        /// Replaces the feed built into the app when set.
+        public var feedURL: String?
+
+        public init() {}
+
+        enum CodingKeys: String, CodingKey { case check, channel, intervalHours, feedURL }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            check = try c.decodeIfPresent(Bool.self, forKey: .check) ?? check
+            channel = c.decodeChoice(forKey: .channel) ?? channel
+            intervalHours = max(1, try c.decodeIfPresent(Int.self, forKey: .intervalHours) ?? intervalHours)
+            let feed = try c.decodeIfPresent(String.self, forKey: .feedURL)?.trimmingCharacters(in: .whitespaces)
+            feedURL = feed?.isEmpty == false ? feed : nil
+        }
+    }
+
     public struct Onboarding: Codable, Equatable, Sendable {
         /// Show the welcome window at launch. The app sets this to false once it has been
         /// seen; set it back to true to see it again.
@@ -814,6 +841,7 @@ public struct Config: Codable, Equatable, Sendable {
     public var bookmarks = Bookmarks()
     public var colors = Colors()
     public var startup = Startup()
+    public var updates = Updates()
     public var onboarding = Onboarding()
     public var debug = Debug()
 
@@ -832,7 +860,7 @@ public struct Config: Codable, Equatable, Sendable {
     }
 
     /// Every top-level section, in the file's order; `ConfigDocs` documents each one.
-    public enum CodingKeys: String, CodingKey, CaseIterable { case hotKey, hotkeys, keys, aliases, quicklinks, quickKeys, panel, home, search, ranking, calculator, commands, settingsPanes, processes, keepAwake, shortcuts, webSearch, windows, clipboard, snippets, paste, emoji, files, paths, dictionary, bookmarks, colors, scripts, startup, onboarding, debug }
+    public enum CodingKeys: String, CodingKey, CaseIterable { case hotKey, hotkeys, keys, aliases, quicklinks, quickKeys, panel, home, search, ranking, calculator, commands, settingsPanes, processes, keepAwake, shortcuts, webSearch, windows, clipboard, snippets, paste, emoji, files, paths, dictionary, bookmarks, colors, scripts, startup, updates, onboarding, debug }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -870,6 +898,7 @@ public struct Config: Codable, Equatable, Sendable {
         colors = try c.decodeIfPresent(Colors.self, forKey: .colors) ?? Colors()
         scripts = try c.decodeIfPresent(Scripts.self, forKey: .scripts) ?? Scripts()
         startup = try c.decodeIfPresent(Startup.self, forKey: .startup) ?? Startup()
+        updates = try c.decodeIfPresent(Updates.self, forKey: .updates) ?? Updates()
         onboarding = try c.decodeIfPresent(Onboarding.self, forKey: .onboarding) ?? Onboarding()
         debug = try c.decodeIfPresent(Debug.self, forKey: .debug) ?? Debug()
     }
@@ -905,6 +934,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(colors, forKey: .colors)
         try c.encode(scripts, forKey: .scripts)
         try c.encode(startup, forKey: .startup)
+        try c.encode(updates, forKey: .updates)
         try c.encode(onboarding, forKey: .onboarding)
         try c.encode(debug, forKey: .debug)
     }

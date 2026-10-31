@@ -1,0 +1,20 @@
+cask "mestre" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+
+  url "https://github.com/fabioop/mestre/releases/download/v#{version}/Mestre-#{version}.zip"
+  name "Mestre"
+  desc "Fast, keyboard-first launcher configured by one JSON file"
+  homepage "https://github.com/fabioop/mestre"
+
+  auto_updates true
+  depends_on arch: :arm64
+  depends_on macos: ">= :sonoma"
+
+  app "Mestre.app"
+
+  zap trash: [
+    "~/.config/mestre",
+    "~/Library/Preferences/app.mestre.Mestre.plist",
+  ]
+end

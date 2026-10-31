@@ -14,6 +14,7 @@ Name: Mestre (Portuguese for "master"). Bundle id `app.mestre.Mestre`, config at
 - `make run` — release build + `.app` bundle in `build/`, then opens it. `make install` copies to `~/Applications`.
 - `make icon` — redraws `Resources/Mestre.icns` from `scripts/make-icon.swift` (CoreGraphics, no design tools).
 - `make test` — runs `scripts/test.sh` (plain `swift test` fails: Swift Testing needs the CLT framework paths).
+- `make release` — suggests a version from the commits, tags `master` and pushes; CI does the rest. See docs/releasing.md.
 - Targets: `MestreCore` (pure logic, tested), `Mestre` (app). Swift language mode 5 to keep AppKit interop simple.
 
 ## Conventions

@@ -170,6 +170,20 @@ import Testing
 }
 
 @Suite struct DebugConfigTests {
+    @Test func updatesDefaultToStableDailyChecks() throws {
+        let defaults = Config().updates
+        #expect(defaults.check && defaults.channel == .stable && defaults.intervalHours == 24 && defaults.feedURL == nil)
+
+        let json = #"{"updates": {"check": false, "channel": "BETA", "intervalHours": 0, "feedURL": " "}}"#
+        let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+        #expect(!config.updates.check && config.updates.channel == .beta)
+        #expect(config.updates.intervalHours == 1)
+        #expect(config.updates.feedURL == nil)
+
+        let unknown = try JSONDecoder().decode(Config.self, from: Data(#"{"updates": {"channel": "nightly"}}"#.utf8))
+        #expect(unknown.updates.channel == .stable)
+    }
+
     @Test func debugSectionDefaultsOffAndDecodes() throws {
         #expect(Config().debug.logTimings == false)
         let config = try JSONDecoder().decode(Config.self, from: Data(#"{"debug": {"logTimings": true}}"#.utf8))

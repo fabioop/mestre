@@ -1,4 +1,4 @@
-.PHONY: build bundle run test install icon clean
+.PHONY: build bundle run test test-release release install icon clean
 
 build:
 	swift build
@@ -12,6 +12,13 @@ run: bundle
 
 test:
 	scripts/test.sh
+
+test-release:
+	scripts/test-release.sh
+
+# Suggests the next version and pushes the tag; set VERSION to choose it yourself.
+release:
+	scripts/release.sh $(VERSION)
 
 install: bundle
 	-pkill -x Mestre

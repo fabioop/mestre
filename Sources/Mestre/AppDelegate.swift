@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = ConfigStore()
     private let viewModel = SearchViewModel()
     private let textExpander = TextExpander()
+    private let updater = Updater()
     private var panelController: SearchPanelController!
     private var settingsWindow: SettingsWindowController?
     private var welcomeWindow: WelcomeWindowController?
@@ -45,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .toggleKeepAwake: self?.viewModel.keepAwake.manager.toggle()
             }
         }
+        updater.apply(settings.config.updates)
         setUpStatusItem()
         bindSettings()
         // Not on a broken config: that run uses defaults, so the flag is not the user's.
@@ -168,6 +170,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
         menu.addItem(withTitle: "Edit Config File", action: #selector(editConfig), keyEquivalent: "")
         menu.addItem(withTitle: "Welcome Guide", action: #selector(showWelcome), keyEquivalent: "")
+        if updater.canUpdate {
+            menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        }
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Mestre", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         for item in menu.items where item.action != #selector(NSApplication.terminate(_:)) {
@@ -185,6 +190,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.image = StatusMark(activeCount: session != nil && showCup ? 1 : 0).image
         button.toolTip = session.map { "Mestre: " + $0.summary().lowercased() } ?? "Mestre"
     }
+
+    @objc private func checkForUpdates() { updater.checkNow() }
 
     @objc private func rebuildIndex() { viewModel.apps.index.rescan() }
 
@@ -262,6 +269,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Hotkey
 
     private func bindSettings() {
+        settings.$config
+            .map(\.updates)
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] updates in self?.updater.apply(updates) }
+            .store(in: &cancellables)
+
         settings.$hotkeyTable
             .combineLatest(settings.$config.map(\.hotKey).removeDuplicates())
             .dropFirst()

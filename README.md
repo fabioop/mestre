@@ -31,6 +31,7 @@ Press **⌥ Space** and type.
 | Your own scripts | a keyword you choose |
 | Themes | `panel.theme`, or Settings › Appearance |
 | Tile home screen | `home.layout`, or Settings › Appearance |
+| Automatic updates | `updates.check`, `updates.channel` |
 
 You can also import snippets, quicklinks and hotkeys from Raycast or Alfred under Settings › General.
 
@@ -47,7 +48,9 @@ You can also import snippets, quicklinks and hotkeys from Raycast or Alfred unde
 
 ## Install
 
-Mestre needs macOS 14 or later and the Command Line Tools (`xcode-select --install`). Xcode is not required.
+Mestre needs macOS 14 or later. Download the latest build from [Releases](https://github.com/fabioop/mestre/releases) and drag it into Applications. Downloads are Apple silicon only.
+
+To build from source instead, you need the Command Line Tools (`xcode-select --install`). Xcode is not required.
 
 ```bash
 git clone https://github.com/fabioop/mestre.git

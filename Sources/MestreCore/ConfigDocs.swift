@@ -37,6 +37,7 @@ public enum ConfigDocs {
         case .colors: return "Colour conversion rows."
         case .scripts: return "Keyword → a command that prints JSON rows; once or per keystroke."
         case .startup: return "Launch at login; missing leaves what macOS has."
+        case .updates: return "In-app updates: scheduled checks, stable or beta channel, interval, feed."
         case .onboarding: return "The welcome window."
         case .debug: return "Timing logs."
         }

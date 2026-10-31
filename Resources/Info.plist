@@ -17,9 +17,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>0.0.0-dev</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>0</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>LSUIElement</key>
@@ -28,6 +28,8 @@
     <true/>
     <key>NSAppleEventsUsageDescription</key>
     <string>Mestre runs system commands such as Empty Trash and Toggle Dark Mode by sending Apple events to Finder and System Events.</string>
+    <key>SUFeedURL</key>
+    <string>https://raw.githubusercontent.com/fabioop/mestre/appcast/appcast.xml</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 Fabio Pereira. GPL-3.0 License.</string>
 </dict>
