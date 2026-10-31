@@ -4,7 +4,7 @@ Mestre is a keyboard launcher that lives in the macOS menu bar. The system below
 
 Mestre looks like a 2026 launcher: one dense list, one line per item, a footer that says what Return does, a brand accent, glass. It keeps its own grammar:
 
-- **No modes.** A feature is typed, never entered. The footer names the feature that owns the query instead of a navigation stack, and ⎋ always closes.
+- **No modes.** A feature is typed, never entered. The footer names the feature that owns the query instead of a navigation stack, and esc always closes.
 - **Kind, not extension.** Every row says what it is (App, File, Command) at the trailing edge, in words. There are no extension icons, badges or chips.
 - **Violet.** The accent is the app icon's violet; selection is a tint of it, never a solid fill.
 - **Uppercase section labels** with tracking, and a Mestre glyph in the footer, are the two typographic signatures.
@@ -23,7 +23,7 @@ Mestre looks like a 2026 launcher: one dense list, one line per item, a footer t
 
 - **Voice.** Short, plain, imperative. "Show in Finder", "Copy Path", "Keep awake for 45 min". Sentence case for titles and actions; no trailing punctuation except the ellipsis on actions that open something else ("Settings…", "Search…").
 - **Empty states say what to type.** "No apps match “xqz”" names the query; "Keep awake: 45m, 2h, until 18:30, off" lists the grammar. Never "No results".
-- **Keys are glyphs, in the order ⌃⌥⇧⌘**, then the key: ↩ ⇥ ⎋ ⌫ ⌦ ↑ ↓ ← → Space F1–F20. Written inside a `KeyHint` cap, never inline in prose.
+- **Keys are glyphs, in the order ⌃⌥⇧⌘**, then the key: ↩ ⇥ esc ⌫ ⌦ ↑ ↓ ← → Space F1–F20. Written inside a `KeyHint` cap, never inline in prose.
 - **Kind labels are one word**: App, File, Command, Feature, Calculator, Clipboard, Snippet, Window, Web. They are the `KindBadge`, in `kind` on `ink-secondary`, on every row.
 - **No emoji in chrome.** Emoji appear only as the content of the Emoji feature's rows.
 - **The config path is written as a path**: `~/.config/mestre/config.json`, in `field-mono`.
@@ -79,11 +79,11 @@ Keys are intercepted by the panel before the text field, except while an input m
 | --- | --- |
 | ↑ ↓, ⌃P ⌃N | Move the selection; clamps at the ends, no wrap |
 | ↩ | Runs the first action of the selected row |
-| ⌘K | Opens the actions menu on the first action; ⌘K or ⎋ closes it |
-| ⎋ | Closes the panel |
+| ⌘K | Opens the actions menu on the first action; ⌘K or esc closes it |
+| esc | Closes the panel |
 | ⌘↩, ⌘Q, ⌘H, ⌘⇧C, ⌘Y, ⌘⇧K, ⌘⌫ | Run the action with that id on the selected row, or beep |
 
-⇥ scopes a feature or quicklink row (a chip before the field) and unfolds any other row's actions as chips; ⌫ on an empty field leaves a scope. Not done: `keys.escape` (⎋ always closes), `panel.screen`. No typing timer, ever.
+⇥ scopes a feature or quicklink row (a chip before the field) and unfolds any other row's actions as chips; ⌫ on an empty field leaves a scope. Not done: `keys.escape` (esc always closes), `panel.screen`. No typing timer, ever.
 
 ## Components
 

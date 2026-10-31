@@ -79,7 +79,7 @@ public struct KeyCombo: Codable, Hashable, Sendable {
 
     private static let specialKeyLabels: [Int: String] = [
         kVK_Space: "Space", kVK_Return: "↩", kVK_Tab: "⇥", kVK_Delete: "⌫", kVK_ForwardDelete: "⌦",
-        kVK_Escape: "⎋", kVK_LeftArrow: "←", kVK_RightArrow: "→", kVK_UpArrow: "↑", kVK_DownArrow: "↓",
+        kVK_Escape: "esc", kVK_LeftArrow: "←", kVK_RightArrow: "→", kVK_UpArrow: "↑", kVK_DownArrow: "↓",
         kVK_Home: "↖", kVK_End: "↘", kVK_PageUp: "⇞", kVK_PageDown: "⇟",
         kVK_F1: "F1", kVK_F2: "F2", kVK_F3: "F3", kVK_F4: "F4", kVK_F5: "F5", kVK_F6: "F6",
         kVK_F7: "F7", kVK_F8: "F8", kVK_F9: "F9", kVK_F10: "F10", kVK_F11: "F11", kVK_F12: "F12",
@@ -101,7 +101,7 @@ public struct KeyCombo: Codable, Hashable, Sendable {
 public extension KeyCombo {
     private static let namedKeys: [String: (code: Int, label: String)] = [
         "space": (kVK_Space, "Space"), "return": (kVK_Return, "↩"), "enter": (kVK_Return, "↩"),
-        "tab": (kVK_Tab, "⇥"), "escape": (kVK_Escape, "⎋"), "esc": (kVK_Escape, "⎋"),
+        "tab": (kVK_Tab, "⇥"), "escape": (kVK_Escape, "esc"), "esc": (kVK_Escape, "esc"),
         "delete": (kVK_Delete, "⌫"), "backspace": (kVK_Delete, "⌫"), "forwarddelete": (kVK_ForwardDelete, "⌦"),
         "up": (kVK_UpArrow, "↑"), "down": (kVK_DownArrow, "↓"), "left": (kVK_LeftArrow, "←"), "right": (kVK_RightArrow, "→"),
         "home": (kVK_Home, "↖"), "end": (kVK_End, "↘"), "pageup": (kVK_PageUp, "⇞"), "pagedown": (kVK_PageDown, "⇟"),

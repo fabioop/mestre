@@ -100,7 +100,7 @@ write('KindBadge', 'group="Results" height=60', '''
 
 # KeyHint
 write('KeyHint', 'group="Keys" height=90', f'''
-<div class="swatch-row" style="gap:20px">{hint('Open','↩')}{hint('Actions','⌘K')}{hint('Show in Finder','⌘↩')}{hint('Copy Path','⌘⇧C')}{hint('Close','⎋')}</div>
+<div class="swatch-row" style="gap:20px">{hint('Open','↩')}{hint('Actions','⌘K')}{hint('Show in Finder','⌘↩')}{hint('Copy Path','⌘⇧C')}{hint('Close','esc')}</div>
 <div class="swatch-row">{cap('⌃')}{cap('⌥')}{cap('⇧')}{cap('⌘')}{cap('↑')}{cap('↓')}{cap('⇥')}{cap('⌫')}{cap('Space')}{cap('F12')}</div>''')
 
 # ActionsMenu

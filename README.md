@@ -46,7 +46,7 @@ You can also import snippets, quicklinks and hotkeys from Raycast or Alfred unde
 | ↩ | Open |
 | ⌘K | All actions for the selected row |
 | ⇥ | Enter a feature, or show a row's actions |
-| ⎋ | Close |
+| esc | Close |
 
 ## Install
 
