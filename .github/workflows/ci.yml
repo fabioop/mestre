@@ -22,3 +22,5 @@ jobs:
         run: scripts/bundle.sh release
       - name: Check the signature
         run: codesign --verify --deep --strict build/Mestre.app
+      - name: Signing keeps one identity across builds
+        run: scripts/test-signing.sh

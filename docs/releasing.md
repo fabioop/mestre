@@ -106,10 +106,26 @@ the secret, then delete the file. Installed copies can only verify updates signe
 | `SPARKLE_PUBLIC_KEY` | Variable | The public key |
 | `SPARKLE_PRIVATE_KEY` | Secret | The private key |
 
-### Signing and notarization
+### Self-signed certificate
 
-These need an Apple Developer account. Without them the build is ad-hoc signed, and people have to
-allow it under System Settings › Privacy & Security.
+macOS ties permissions like Accessibility to how an app is signed. An ad-hoc build is identified only
+by a fingerprint, which changes every release, so an update silently breaks the permission. Sign with
+one certificate and it stays. Do this before the first public release:
+
+```bash
+scripts/make-signing-cert.sh
+```
+
+It creates the certificate, adds it to GitHub as `SIGNING_CERTIFICATE_BASE64` and
+`SIGNING_CERTIFICATE_PASSWORD`, and leaves two files in your home folder. Save both in your password
+manager, then delete them. If you lose them, a new certificate works, but everyone has to grant
+permissions once more. People still see the first-launch warning, since Apple doesn't vouch for it.
+
+### Apple signing and notarization
+
+These need an Apple Developer account, and they take over from the self-signed certificate. They
+remove the first-launch warning, and they show your legal name on the signature. People have to grant
+permissions once more when you switch.
 
 | Secret | Value |
 | --- | --- |

@@ -18,6 +18,7 @@ jobs:
     env:
       TAG: ${{ github.ref_name }}
       HAS_APPLE_SECRETS: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
+      HAS_SELF_SIGNED_SECRETS: ${{ secrets.SIGNING_CERTIFICATE_BASE64 != '' }}
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
       HAS_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
     steps:
@@ -43,32 +44,37 @@ jobs:
           scripts/test-release.sh
 
       - name: Import the signing certificate
-        if: env.HAS_APPLE_SECRETS == 'true'
+        if: env.HAS_APPLE_SECRETS == 'true' || env.HAS_SELF_SIGNED_SECRETS == 'true'
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          SIGNING_CERTIFICATE_BASE64: ${{ secrets.SIGNING_CERTIFICATE_BASE64 }}
+          SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
         run: |
-          keychain="$RUNNER_TEMP/signing.keychain-db"
-          password="$(uuidgen)"
-          security create-keychain -p "$password" "$keychain"
-          security set-keychain-settings -lut 3600 "$keychain"
-          security unlock-keychain -p "$password" "$keychain"
-          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
-          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          rm "$RUNNER_TEMP/certificate.p12"
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
-          security list-keychains -d user -s "$keychain" login.keychain
+          if [ "$HAS_APPLE_SECRETS" = true ]; then
+            export CERTIFICATE_BASE64="$APPLE_CERTIFICATE_BASE64" CERTIFICATE_PASSWORD="$APPLE_CERTIFICATE_PASSWORD"
+          else
+            export CERTIFICATE_BASE64="$SIGNING_CERTIFICATE_BASE64" CERTIFICATE_PASSWORD="$SIGNING_CERTIFICATE_PASSWORD"
+          fi
+          identity="$(scripts/import-signing-cert.sh "$RUNNER_TEMP/signing.keychain-db" | tail -n 1)"
+          if [ "$HAS_APPLE_SECRETS" = true ]; then identity="$APPLE_SIGNING_IDENTITY"; fi
+          echo "::add-mask::$identity"
+          echo "MESTRE_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+
+      - name: Warn about an unstable identity
+        if: env.HAS_APPLE_SECRETS != 'true' && env.HAS_SELF_SIGNED_SECRETS != 'true'
+        run: echo "::warning::No signing certificate, so people lose Accessibility permission when they update to this build."
 
       - name: Build
         env:
           MESTRE_VERSION: ${{ env.VERSION }}
           MESTRE_BUILD: ${{ env.BUILD }}
           MESTRE_SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
-          if [ "$HAS_APPLE_SECRETS" = true ]; then export MESTRE_SIGN_IDENTITY="$APPLE_SIGNING_IDENTITY"; fi
           scripts/bundle.sh release
           codesign --verify --deep --strict build/Mestre.app
+          codesign -dr - build/Mestre.app
 
       - name: Notarize
         if: env.HAS_APPLE_SECRETS == 'true'

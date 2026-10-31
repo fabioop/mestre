@@ -5,7 +5,7 @@
 # Release builds set these; a plain local build needs none of them:
 #   MESTRE_VERSION            visible version, from the git tag (default 0.0.0-dev)
 #   MESTRE_BUILD              build number Sparkle compares (default: commits on this branch)
-#   MESTRE_SIGN_IDENTITY      Developer ID identity (default: ad-hoc)
+#   MESTRE_SIGN_IDENTITY      signing identity: Developer ID or self-signed (default: ad-hoc)
 #   MESTRE_SPARKLE_PUBLIC_KEY update key; without it the app leaves Sparkle off
 set -euo pipefail
 
@@ -42,25 +42,25 @@ if [ -f Resources/Mestre.icns ]; then
 fi
 
 # Sign inside out: Sparkle's helpers, its framework, then the app.
-if [ "$IDENTITY" = "-" ]; then
-  sign() { codesign --force --sign - "$@"; }
-else
-  sign() { codesign --force --sign "$IDENTITY" --options runtime --timestamp "$@"; }
-fi
+# An ad-hoc identity is only a fingerprint of the build, so macOS drops permissions like
+# Accessibility on every rebuild. A certificate keeps them across builds. Only a Developer ID build
+# gets the hardened runtime: it would refuse to load Sparkle under a certificate with no team, and
+# it blocks Apple events unless the entitlement allows them.
+SIGN=(codesign --force --sign "$IDENTITY")
+APP_FLAGS=()
+case "$IDENTITY" in
+  "Developer ID"*)
+    SIGN+=(--options runtime --timestamp)
+    APP_FLAGS=(--entitlements Resources/Mestre.entitlements)
+    ;;
+esac
+sign() { "${SIGN[@]}" "$@"; }
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
 sign "$SPARKLE/XPCServices/Installer.xpc"
 sign --preserve-metadata=entitlements "$SPARKLE/XPCServices/Downloader.xpc"
 sign "$SPARKLE/Autoupdate"
 sign "$SPARKLE/Updater.app"
 sign "$APP/Contents/Frameworks/Sparkle.framework"
-
-# Ad-hoc signature: keeps the bundle identity stable across rebuilds so
-# Login Items (SMAppService) and permission grants stick. The hardened runtime a Developer ID
-# signature needs blocks Apple events unless the entitlement allows them.
-if [ "$IDENTITY" = "-" ]; then
-  sign --identifier app.mestre.Mestre "$APP"
-else
-  sign --identifier app.mestre.Mestre --entitlements Resources/Mestre.entitlements "$APP"
-fi
+sign --identifier app.mestre.Mestre ${APP_FLAGS[@]+"${APP_FLAGS[@]}"} "$APP"
 
 echo "Built $APP ($CONFIG, $VERSION build $BUILD)"
