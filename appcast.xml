@@ -3,16 +3,6 @@
   <channel>
     <title>Mestre</title>
     <item>
-      <title>0.1.0-beta.4</title>
-      <pubDate>Sat, 31 Oct 2026 20:28:48 GMT</pubDate>
-      <sparkle:version>16</sparkle:version>
-      <sparkle:shortVersionString>0.1.0-beta.4</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <sparkle:channel>beta</sparkle:channel>
-      <description>&lt;h3&gt;Fixes&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;release: turn on the hardened runtime for every signed release&lt;/li&gt;&lt;/ul&gt;</description>
-      <enclosure url="https://github.com/fabioop/mestre/releases/download/v0.1.0-beta.4/Mestre-0.1.0-beta.4.zip" length="2875923" type="application/octet-stream" sparkle:edSignature="pYqpYE0jvJmO6JCr6X8PthJ016UBNSfD95sB1k/YCwVQu8dqFQZclB8MLjaA7pFJJxstaghddROD0h8IR8LtCg==" />
-    </item>
-    <item>
       <title>0.1.0-beta.3</title>
       <pubDate>Sat, 31 Oct 2026 19:35:27 GMT</pubDate>
       <sparkle:version>15</sparkle:version>
