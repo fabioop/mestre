@@ -4,6 +4,8 @@ A free, open-source launcher for macOS. Fast, keyboard-first, and configured by 
 
 *Mestre* is Portuguese for "master".
 
+**Mestre is in beta.** It's ready for daily use, but expect rough edges. Config keys can still change between `0.x` versions, and the release notes say when they do.
+
 ## What it does
 
 Press **⌥ Space** and type.
@@ -48,7 +50,13 @@ You can also import snippets, quicklinks and hotkeys from Raycast or Alfred unde
 
 ## Install
 
-Mestre needs macOS 14 or later. Download the latest build from [Releases](https://github.com/fabioop/mestre/releases) and drag it into Applications. Downloads are Apple silicon only.
+Mestre needs macOS 14 or later and Apple silicon.
+
+1. Download the latest build from [Releases](https://github.com/fabioop/mestre/releases) and drag it into Applications.
+2. Open Mestre. macOS blocks the first launch, because builds aren't notarized by Apple yet.
+3. Go to System Settings › Privacy & Security, and choose **Open Anyway**.
+
+Mestre updates itself after that.
 
 To build from source instead, you need the Command Line Tools (`xcode-select --install`). Xcode is not required.
 
