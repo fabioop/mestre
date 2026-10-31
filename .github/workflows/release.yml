@@ -21,14 +21,19 @@ jobs:
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
       HAS_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Check the tag
+      - name: Check the tag and the update keys
+        env:
+          SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
         run: |
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "::error::$TAG is not a version tag"; exit 1; }
           git merge-base --is-ancestor "$GITHUB_SHA" origin/master || { echo "::error::$TAG is not on master"; exit 1; }
+          # With only one key, a build ships that can never update, or the appcast never gets it.
+          if [ "$HAS_SPARKLE_KEY" = true ] && [ -z "$SPARKLE_PUBLIC_KEY" ]; then echo "::error::SPARKLE_PUBLIC_KEY is missing"; exit 1; fi
+          if [ "$HAS_SPARKLE_KEY" != true ] && [ -n "$SPARKLE_PUBLIC_KEY" ]; then echo "::error::SPARKLE_PRIVATE_KEY is missing"; exit 1; fi
           echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
           echo "BUILD=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
 
@@ -90,9 +95,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          flags=()
-          case "$VERSION" in *-*) flags=(--prerelease --latest=false) ;; esac
-          gh release create "$TAG" "Mestre-$VERSION.zip" --title "Mestre $VERSION" --notes-file notes.md --verify-tag "${flags[@]}"
+          # A re-run after a later step failed finds the release already there.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "Mestre-$VERSION.zip" --clobber
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            flags=()
+            case "$VERSION" in *-*) flags=(--prerelease --latest=false) ;; esac
+            gh release create "$TAG" "Mestre-$VERSION.zip" --title "Mestre $VERSION" --notes-file notes.md --verify-tag "${flags[@]}"
+          fi
 
       - name: Update the appcast
         if: env.HAS_SPARKLE_KEY == 'true'
@@ -116,8 +127,10 @@ jobs:
             --min-os "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' Resources/Info.plist)" \
             --notes-file notes.md
           git -C "$RUNNER_TEMP/appcast" add appcast.xml
-          git -C "$RUNNER_TEMP/appcast" commit -m "chore(appcast): add $VERSION"
-          git -C "$RUNNER_TEMP/appcast" push origin HEAD:refs/heads/appcast
+          if ! git -C "$RUNNER_TEMP/appcast" diff --cached --quiet; then
+            git -C "$RUNNER_TEMP/appcast" commit -m "chore(appcast): add $VERSION"
+            git -C "$RUNNER_TEMP/appcast" push origin HEAD:refs/heads/appcast
+          fi
 
       - name: Update the Homebrew cask
         if: env.HAS_TAP_TOKEN == 'true' && !contains(github.ref_name, '-')
@@ -132,5 +145,7 @@ jobs:
           git -C "$tap" config user.name "github-actions[bot]"
           git -C "$tap" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C "$tap" add Casks/mestre.rb
-          git -C "$tap" commit -m "mestre $VERSION"
-          git -C "$tap" push origin HEAD
+          if ! git -C "$tap" diff --cached --quiet; then
+            git -C "$tap" commit -m "mestre $VERSION"
+            git -C "$tap" push origin HEAD
+          fi

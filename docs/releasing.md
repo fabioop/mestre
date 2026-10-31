@@ -76,6 +76,9 @@ flowchart TD
 - Tags are never moved or deleted. If a release is bad, fix it and ship the next patch version. A
   ruleset on `v*` tags enforces this.
 - Only commits on `master` can be released. The workflow fails on any other tag.
+- If a release run fails, re-run it in GitHub Actions. Every step is safe to repeat: it replaces the
+  download and updates the appcast and cask entries for that version.
+- A release fails straight away if only one of the two Sparkle keys is set.
 
 ## One-time setup
 
