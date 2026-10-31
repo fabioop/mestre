@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Mestre</title>
+    <item>
+      <title>0.1.0-beta.1</title>
+      <pubDate>Sat, 31 Oct 2026 18:48:32 GMT</pubDate>
+      <sparkle:version>13</sparkle:version>
+      <sparkle:shortVersionString>0.1.0-beta.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:channel>beta</sparkle:channel>
+      <description>&lt;h3&gt;Features&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;demo: add the product demo videos&lt;/li&gt;&lt;li&gt;icon: set the M in Archivo Expanded Bold&lt;/li&gt;&lt;li&gt;settings: show the version and beta status&lt;/li&gt;&lt;li&gt;release: add tag-driven releases and Sparkle updates&lt;/li&gt;&lt;li&gt;themes: add themes, tiles home, new Settings and welcome guide&lt;/li&gt;&lt;li&gt;a fast macOS launcher, configured by one file&lt;/li&gt;&lt;/ul&gt;&lt;h3&gt;Fixes&lt;/h3&gt;&lt;ul&gt;&lt;li&gt;release: make release runs safe to repeat&lt;/li&gt;&lt;li&gt;keys: show the Escape key as esc&lt;/li&gt;&lt;/ul&gt;</description>
+      <enclosure url="https://github.com/fabioop/mestre/releases/download/v0.1.0-beta.1/Mestre-0.1.0-beta.1.zip" length="2863335" type="application/octet-stream" sparkle:edSignature="1BxNU3/3cAspcbwzdWbrNu/qtT62neBfNYxlHw7CWwCodoOKhxxk8ZmspwblbPMuV0r/FsA9SJgMX9O/6hHqBw==" />
+    </item>
+  </channel>
+</rss>
