@@ -184,6 +184,7 @@ public enum SettingsCatalog {
         general("hotKey", "Open Mestre", "shortcut hotkey global key spotlight"),
         general("launchAtLogin", "Launch at login", "startup boot start"),
         general("welcome", "Welcome window", "startup onboarding intro"),
+        general("version", "Version", "about beta release"),
         general("configFile", "Config file", "json export backup copy move sync another mac defaults"),
         general("apps.system", "Apple's built-in apps", "system include search"),
         general("apps.folders", "App folders", "applications scan directory"),

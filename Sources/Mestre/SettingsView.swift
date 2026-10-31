@@ -144,6 +144,13 @@ private struct GeneralPage: View {
         ImportPage(settings: settings).setting("import")
         ResetSection(settings: settings, page: .general)
         ResetSection(settings: settings, page: nil).setting("reset")
+        Section("About") {
+            LabeledContent("Version") {
+                Text(AppVersion.display(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0-dev"))
+                    .textSelection(.enabled)
+            }
+            .setting("version")
+        }
     }
 }
 
