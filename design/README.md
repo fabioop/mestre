@@ -68,8 +68,8 @@ None, by design. The panel appears with the system utility-window behaviour and 
 - Row icons are 28 pt (`panel.iconSize`): the app's own icon, the Finder icon for files, a colour swatch, an emoji, or an SF Symbol at half the icon size, medium, on an `IconTile`.
 - Symbols are SF Symbols, one per command or feature, chosen for the noun (`cup.and.saucer` keep awake, `moon.zzz` sleep, `lock` lock screen, `plus.forwardslash.minus` calculator). The fallback is `circle.dashed`.
 - Actions carry a symbol at 13 pt in a 16 pt column; `circle` when none is declared.
-- The menu-bar item and the footer glyph are `sparkle.magnifyingglass` as a template image; the menu-bar one swaps to `cup.and.saucer.fill` while keep-awake runs.
-- The app icon is drawn in code (`scripts/make-icon.swift`): a squircle at 0.225 × width, a −60° gradient from `mark-indigo` to `mark-violet`, a white "M" polyline and a `mark-spark` "+" at 80 %/80 %.
+- The footer glyph is `sparkle.magnifyingglass`. The menu-bar item is the M, with one dot beside it per active feature.
+- The app icon is drawn in code (`scripts/make-icon.swift`): the M from Archivo Expanded Bold (SIL OFL) in ink `#1d1d1b` on a putty `#dcdad2` squircle at 0.225 × width. The menu-bar item uses the same outline as a template image.
 
 ## Keyboard
 
