@@ -21,6 +21,12 @@ public struct AppEntry: Identifiable, Hashable, SearchItem, @unchecked Sendable 
         self.icon = icon
     }
 
+    /// The name the Finder shows for an app bundle, without its extension.
+    public static func displayName(of url: URL) -> String {
+        let name = FileManager.default.displayName(atPath: url.path)
+        return name.hasSuffix(".app") ? String(name.dropLast(4)) : name
+    }
+
     /// Folder the app lives in, with the home directory abbreviated: "/Applications", "~/Applications".
     public var locationDescription: String {
         var folder = url.deletingLastPathComponent().path

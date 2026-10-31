@@ -207,10 +207,9 @@ public enum AlfredImport {
             let label = KeyCombo.label(forKeyCode: UInt16(keyCode), characters: config["hotstring"] as? String)
             let combo = KeyCombo(keyCode: UInt32(keyCode), modifiers: NSEvent.ModifierFlags(rawValue: modifiers), keyLabel: label)
             guard !combo.modifiers.isEmpty else { continue }  // modifier-only or unset triggers aren't global hotkeys
-            // The config stores the spelling, so it must parse back to the same key on this layout.
             let text = combo.configString
-            guard KeyCombo(parsing: text)?.keyCode == combo.keyCode else {
-                result.warnings.append("\(workflow): the hotkey for \(appName) (\(combo.displayString)) has no spelling Mestre can read; add it under Hotkeys")
+            guard combo.readsBack() else {
+                result.warnings.append("\(workflow): the hotkey for \(appName) (\(combo.displayString)) has no spelling Mestre can read; add it under Shortcuts")
                 continue
             }
             if result.hotkeys[text] == nil { result.hotkeys[text] = appName }

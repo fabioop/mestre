@@ -47,9 +47,20 @@ final class SearchViewModel: ObservableObject {
         didSet {
             accent = Self.color(for: layout.accentChoice)
             // Compact mode decides whether an empty query lists the home screen.
-            if layout.compact != oldValue.compact, Query(effectiveQuery).isEmpty { search(keepSelection: true) }
+            if layout.compact != oldValue.compact || (layout.width >= Self.tilesMinimumWidth) != (oldValue.width >= Self.tilesMinimumWidth),
+               Query(effectiveQuery).isEmpty { search(keepSelection: true) }
         }
     }
+    /// The active theme resolved for the views; set before `layout` when the theme changes.
+    @Published var style = PanelStyle()
+    /// The empty query is drawn as tiles (`home.layout`). Off, none of the tile code runs.
+    @Published private(set) var isTilesHome = false
+    @Published private(set) var tileInfo = HomeTileInfo()
+    /// Rows at the start of `results` that are recent apps; the rest are item tiles.
+    private(set) var tileRecentCount = 0
+    /// Narrower than this the tiles can't fit, so the list stands in.
+    private static let tilesMinimumWidth = 480.0
+    private var usesTiles: Bool { home.layout == .tiles && !layout.compact && layout.width >= Self.tilesMinimumWidth }
     /// Selection highlight: `panel.accentColor`, else the system accent.
     @Published private(set) var accent: Color = SearchViewModel.color(for: Config.Panel().accentChoice)
 
@@ -205,6 +216,9 @@ final class SearchViewModel: ObservableObject {
         let parsed = Query(effectiveQuery)
         let previous = keepSelection ? selected.map { "\($0.id)#\($0.item.actions.count)" } : nil
         let owner = parsed.isEmpty ? nil : providers.first { $0.owns(parsed) }
+        // Before the results: the panel measures itself when they change.
+        let tiles = parsed.isEmpty && usesTiles
+        if tiles != isTilesHome { isTilesHome = tiles }
         results = Perf.measure("search, \(parsed.text.count)-char query") {
             if parsed.isEmpty {
                 for provider in providers { provider.queryLeft() }
@@ -262,6 +276,7 @@ final class SearchViewModel: ObservableObject {
     /// feature (Keep Awake) is listed once, as the feature.
     private func homeRows(_ query: Query) -> [ScoredItem] {
         guard !layout.compact else { return [] }
+        if usesTiles { return tileRows(query) }
         let visibility = Visibility(true, hidden: home.hidden)
         let features = visibility.filter(providers.compactMap { $0.homeFeature() }) { [$0.id] }
         let replaced = Set(features.compactMap { $0.replacesCommand?.lowercased() })
@@ -278,6 +293,34 @@ final class SearchViewModel: ObservableObject {
         }
         applyQuickKeys(to: &rows, query: query)
         return rows
+    }
+
+    /// The tile home screen's rows: recent apps, then `home.tiles`. Reads what the tiles show
+    /// beside them, here and not on a timer, so it is as fresh as the moment the panel opened.
+    private func tileRows(_ query: Query) -> [ScoredItem] {
+        let visibility = Visibility(true, hidden: home.hidden)
+        let features = visibility.filter(providers.compactMap { $0.homeFeature() }) { [$0.id] }
+        let commandRows = visibility.filter(commands.homeRows()) { [$0.item.id] }
+        let recents = apps.results(for: query, limit: min(Config.Home.maximumTileRecents, home.recentCount))
+        // Three that can be drawn: an id with no row doesn't use up a place.
+        let items = Array(home.tiles.lazy.compactMap { id -> ScoredItem? in
+            if let feature = features.first(where: { $0.id == id }) { return self.homeScreen.rows(for: [feature]).first }
+            return commandRows.first { $0.item.id == id }
+        }.prefix(3))
+        tileRecentCount = recents.count
+
+        let now = Date()
+        var info = HomeTileInfo(now: now, power: PowerSource.current())
+        if let session = keepAwake.manager.session {
+            info.keepAwakeValue = session.endDate.map { KeepAwakeParser.describeDuration(seconds: $0.timeIntervalSince(now)) } ?? "On"
+            info.keepAwakeDetail = session.describe(now: now)
+        }
+        if let entry = clipboard.monitor.history.entries.first {
+            info.clipboardTitle = ClipboardItem(entry: entry, image: nil).title
+            info.clipboardAge = RelativeTime.describe(entry.copiedAt, now: now)
+        }
+        tileInfo = info
+        return recents + items
     }
 
     private static func sectionStarts(of results: [ScoredItem]) -> Set<Int> {
@@ -317,6 +360,14 @@ final class SearchViewModel: ObservableObject {
             }
             return true
         }
+        if isTilesHome, action == .complete, !results.isEmpty {
+            selectedIndex = (selectedIndex + 1) % results.count
+            return true
+        }
+        if isTilesHome, let direction = Self.tileDirection(action) {
+            selectedIndex = HomeTiles.move(from: selectedIndex, direction, recents: tileRecentCount, items: results.count - tileRecentCount)
+            return true
+        }
         switch action {
         case .moveUp: moveSelection(by: -1)
         case .moveDown: moveSelection(by: 1)
@@ -328,6 +379,16 @@ final class SearchViewModel: ObservableObject {
         case .complete: completeOrUnfold()
         }
         return true
+    }
+
+    private static func tileDirection(_ action: PanelAction) -> HomeTiles.Direction? {
+        switch action {
+        case .moveUp: return .up
+        case .moveDown: return .down
+        case .moveLeft: return .left
+        case .moveRight: return .right
+        default: return nil
+        }
     }
 
     private func openActions(_ mode: ActionsMode) {

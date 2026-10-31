@@ -13,38 +13,28 @@ func draw(size: CGFloat) -> NSImage {
     let inset = s * 0.1
     let rect = NSRect(x: inset, y: inset, width: s - inset * 2, height: s - inset * 2)
     let path = NSBezierPath(roundedRect: rect, xRadius: rect.width * 0.225, yRadius: rect.width * 0.225)
-    // Deep indigo to violet, the "master" purple.
-    let gradient = NSGradient(colors: [NSColor(calibratedRed: 0.16, green: 0.14, blue: 0.36, alpha: 1), NSColor(calibratedRed: 0.42, green: 0.22, blue: 0.70, alpha: 1)])!
-    gradient.draw(in: path, angle: -60)
-    // Subtle inner highlight.
-    NSColor.white.withAlphaComponent(0.08).setStroke()
-    path.lineWidth = s * 0.012
+    // Putty, the ground of the theme of the same name.
+    NSColor(srgbRed: 0.863, green: 0.855, blue: 0.824, alpha: 1).setFill()
+    path.fill()
+    // A hairline, so the edge holds on a light background.
+    NSColor.black.withAlphaComponent(0.08).setStroke()
+    path.lineWidth = s * 0.008
     path.stroke()
 
-    // A command-key-style "M": three strokes, like a baton gesture.
+    // The M, in the proportions of the menu bar capsule: the same mark at both sizes.
     let stroke = NSBezierPath()
-    stroke.lineWidth = s * 0.075
+    stroke.lineWidth = rect.width * 0.105
     stroke.lineCapStyle = .round
     stroke.lineJoinStyle = .round
-    let left = rect.minX + rect.width * 0.26, right = rect.maxX - rect.width * 0.26
-    let bottom = rect.minY + rect.height * 0.30, top = rect.maxY - rect.height * 0.30
-    let mid = rect.midX
+    let left = rect.midX - rect.width * 0.25, right = rect.midX + rect.width * 0.25
+    let bottom = rect.midY - rect.height * 0.225, top = rect.midY + rect.height * 0.225
     stroke.move(to: NSPoint(x: left, y: bottom))
     stroke.line(to: NSPoint(x: left, y: top))
-    stroke.line(to: NSPoint(x: mid, y: bottom + rect.height * 0.18))
+    stroke.line(to: NSPoint(x: rect.midX, y: bottom + rect.height * 0.16))
     stroke.line(to: NSPoint(x: right, y: top))
     stroke.line(to: NSPoint(x: right, y: bottom))
-    NSColor.white.setStroke()
+    NSColor(srgbRed: 0.114, green: 0.114, blue: 0.106, alpha: 1).setStroke()
     stroke.stroke()
-    // A spark above the M: the summoned answer.
-    let spark = NSBezierPath()
-    let cx = rect.maxX - rect.width * 0.20, cy = rect.maxY - rect.height * 0.20, r = s * 0.045
-    spark.move(to: NSPoint(x: cx, y: cy + r)); spark.line(to: NSPoint(x: cx, y: cy - r))
-    spark.move(to: NSPoint(x: cx - r, y: cy)); spark.line(to: NSPoint(x: cx + r, y: cy))
-    spark.lineWidth = s * 0.03
-    spark.lineCapStyle = .round
-    NSColor(calibratedRed: 1, green: 0.85, blue: 0.4, alpha: 1).setStroke()
-    spark.stroke()
     image.unlockFocus()
     return image
 }

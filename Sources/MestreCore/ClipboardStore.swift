@@ -46,7 +46,8 @@ public struct ClipboardEntry: Codable, Equatable, Sendable, Identifiable {
 
     /// First non-empty line, collapsed, for the row title.
     public var preview: String {
-        let line = content.split(whereSeparator: \.isNewline).first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? ""
+        // Bounded: this runs when the panel opens, and an entry can be a megabyte on one line.
+        let line = content.prefix(Self.searchLength * 10).split(whereSeparator: \.isNewline).first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? ""
         let collapsed = line.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         return collapsed.count > 120 ? String(collapsed.prefix(120)) + "…" : collapsed
     }

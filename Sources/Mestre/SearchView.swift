@@ -4,24 +4,41 @@ import SwiftUI
 struct SearchView: View {
     @ObservedObject var viewModel: SearchViewModel
 
-    static let headerHeight: CGFloat = 24
+    static let headerHeight: CGFloat = 30
     private var layout: Config.Panel { viewModel.layout }
     private var accent: Color { viewModel.accent }
+    private var style: PanelStyle { viewModel.style }
+    /// A filled field or footer sits this far inside the panel.
+    private static let barInset: CGFloat = 8
+    /// Their corners run parallel to the panel's, whatever radius it has.
+    private var barRadius: CGFloat { max(0, layout.cornerRadius - Self.barInset) }
+    static let filledFooterHeight: CGFloat = 42
+    /// Something sits under the field: the list, or the tiles even with no rows of their own.
+    private var hasRows: Bool { !viewModel.results.isEmpty || viewModel.isTilesHome }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: layout.queryFontSize * 0.8, weight: .medium))  // icon tracks the query font
-                    .foregroundStyle(.secondary)
+                    .font(style.font(layout.queryFontSize * 0.8, .medium))  // icon tracks the query font
+                    .foregroundStyle(style.fieldSecondary)
                 if let scope = viewModel.scope {
                     ScopeChip(title: scope.title, symbol: scope.symbol, accent: accent)
                 }
-                QueryField(text: $viewModel.query, focusToken: viewModel.focusToken, fontSize: layout.queryFontSize,
-                           placeholder: viewModel.scope.map { "Search \($0.title)…" } ?? QueryField.defaultPlaceholder)
+                QueryField(text: $viewModel.query, focusToken: viewModel.focusToken, font: style.queryFont(size: layout.queryFontSize),
+                           placeholder: viewModel.scope.map { "Search \($0.title)…" } ?? QueryField.defaultPlaceholder,
+                           textColor: style.fieldTextColor, placeholderColor: style.fieldPlaceholderColor, caretColor: style.caretColor)
             }
             .padding(.horizontal, 16)
             .frame(height: layout.fieldHeight)
+            .background {
+                if let field = style.field {
+                    RoundedRectangle(cornerRadius: barRadius, style: .continuous).fill(field)
+                }
+            }
+            .padding([.horizontal, .top], style.field == nil ? 0 : Self.barInset)
+            // The list and the tiles bring their own space under a filled field; nothing else does.
+            .padding(.bottom, style.field != nil && !hasRows ? Self.barInset : 0)
             if !viewModel.chips.isEmpty {
                 // What the owning provider understood ("for 45 min"), under the field.
                 HStack(spacing: 6) {
@@ -32,26 +49,44 @@ struct SearchView: View {
                 .frame(height: Self.chipsHeight, alignment: .top)
             }
 
-            if !viewModel.results.isEmpty {
-                PanelDivider()
-                resultsList
+            // The tiles show the clock and power even with no rows to go with them.
+            if hasRows {
+                if style.field == nil { PanelDivider() }
+                if viewModel.isTilesHome {
+                    HomeTilesView(viewModel: viewModel).padding(8)
+                } else {
+                    resultsList
+                }
                 if viewModel.actionsMode == .menu {
                     PanelDivider()
                     actionsMenu
                 }
             } else if !Query(viewModel.effectiveQuery).isEmpty {
-                PanelDivider()
+                if style.field == nil { PanelDivider() }
                 Text(viewModel.emptyMessage ?? (viewModel.isIndexing ? "Indexing apps…" : "No apps match “\(viewModel.query)”"))
-                    .foregroundStyle(.secondary)
+                    .font(style.font(13))
+                    .foregroundStyle(style.inkSecondary)
                     .frame(height: 44)
             }
             // Under the list, and in compact mode under the bare field, so the panel keeps its shape.
-            if layout.showFooter, !viewModel.results.isEmpty || (layout.compact && Query(viewModel.effectiveQuery).isEmpty) {
-                PanelDivider()
+            if layout.showFooter, hasRows || (layout.compact && Query(viewModel.effectiveQuery).isEmpty) {
+                if style.footer == nil { PanelDivider() }
                 footer
             }
         }
         .frame(width: layout.width)
+        .foregroundStyle(style.ink)
+        .background {
+            if let panel = style.panel {
+                RoundedRectangle(cornerRadius: layout.cornerRadius, style: .continuous).fill(panel)
+            }
+        }
+        .overlay {
+            if let border = style.border {
+                RoundedRectangle(cornerRadius: layout.cornerRadius, style: .continuous).strokeBorder(border, lineWidth: style.borderWidth)
+            }
+        }
+        .environment(\.panelStyle, style)
     }
 
     private var resultsList: some View {
@@ -62,7 +97,7 @@ struct SearchView: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(viewModel.results.enumerated()), id: \.element.id) { index, scored in
                         if starts.contains(index), let section = scored.section {
-                            SectionHeader(title: section)
+                            SectionHeader(title: section, color: style.kinds[scored.item.kind.rawValue])
                         }
                         ResultRow(item: scored.item, alias: scored.alias, quickKey: scored.quickKey, isSelected: index == viewModel.selectedIndex, height: layout.rowHeight,
                                   iconSize: layout.iconSize, accent: accent, useGlass: useGlass, showMetadata: layout.subtitles == .always)
@@ -100,22 +135,22 @@ struct SearchView: View {
         return HStack(spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: "sparkle.magnifyingglass")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(style.font(11, .medium))
                 Text(viewModel.context ?? "Mestre")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(style.font(12, .medium))
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(style.footerSecondary)
             if let toast = viewModel.toast {
                 HStack(spacing: 8) {
                     PanelDivider(vertical: 14)
-                    Image(systemName: "checkmark").font(.system(size: 10, weight: .semibold)).foregroundStyle(.green)
-                    Text(toast).font(.system(size: 12, weight: .medium))
+                    Image(systemName: "checkmark").font(style.font(10, .semibold)).foregroundStyle(style.running)
+                    Text(toast).font(style.font(12, .medium)).foregroundStyle(style.footerInk)
                 }
             }
             Spacer()
             if let item {
                 if let hint = viewModel.bindings.hint(for: .open), let title = item.defaultAction?.title {
-                    footerHint(title, hint)
+                    footerHint(title, hint, primary: true)
                 }
                 if viewModel.actionsMode == .chips, let hint = viewModel.bindings.hint(for: .moveRight) {
                     footerHint("Choose", "← " + hint)
@@ -124,14 +159,21 @@ struct SearchView: View {
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .frame(height: Self.footerHeight)
+        .padding(.leading, 16)
+        .padding(.trailing, style.footer == nil ? 16 : 10)
+        .frame(height: style.footer == nil ? Self.footerHeight : Self.filledFooterHeight)
+        .background {
+            if let fill = style.footer {
+                RoundedRectangle(cornerRadius: barRadius, style: .continuous).fill(fill)
+            }
+        }
+        .padding([.horizontal, .bottom], style.footer == nil ? 0 : Self.barInset)
     }
 
-    private func footerHint(_ label: String, _ keys: String) -> some View {
+    private func footerHint(_ label: String, _ keys: String, primary: Bool = false) -> some View {
         HStack(spacing: 5) {
-            Text(label).font(.system(size: 12)).foregroundStyle(.secondary)
-            KeyHint(keys)
+            Text(label).font(style.font(12)).foregroundStyle(style.footerSecondary)
+            KeyHint(keys, primary: primary)
         }
     }
 
@@ -140,23 +182,25 @@ struct SearchView: View {
         return VStack(alignment: .leading, spacing: 0) {
             SectionHeader(title: "Actions").padding(.horizontal, 8)
             ForEach(Array(viewModel.selectedActions.enumerated()), id: \.element.id) { index, action in
+                let isSelected = index == viewModel.actionIndex
                 HStack(spacing: 10) {
                     Image(systemName: action.icon ?? "circle")
                         .frame(width: 16)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isSelected ? style.selectionSecondary : style.inkSecondary)
                     Text(action.title)
+                        .foregroundStyle(isSelected ? style.selectionInk : style.ink)
                     Spacer()
                     Text(action.id)
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(isSelected ? style.selectionSecondary : style.inkTertiary)
                     if let hint = viewModel.bindings.hint(for: action, isDefault: index == 0) {
-                        KeyHint(hint)
+                        KeyHint(hint, onSelection: isSelected)
                     }
                 }
-                .font(.system(size: 13))
+                .font(style.font(13))
                 .padding(.horizontal, 10)
                 .frame(height: Self.actionRowHeight)
-                .background(SelectionBackground(isSelected: index == viewModel.actionIndex, accent: accent, useGlass: useGlass, cornerRadius: 6))
+                .background(SelectionBackground(isSelected: isSelected, accent: accent, useGlass: useGlass, cornerRadius: style.actionRadius))
                 .contentShape(Rectangle())
                 .onTapGesture { viewModel.run(action) }
             }
@@ -177,14 +221,18 @@ struct SearchView: View {
 /// Small uppercase heading above a group of rows.
 struct SectionHeader: View {
     let title: String
+    /// The kind's colour, when the theme gives kinds one.
+    var color: Color?
+    @Environment(\.panelStyle) private var style
 
     var body: some View {
         Text(title)
-            .textCase(.uppercase)
-            .font(.system(size: 11, weight: .semibold))
+            .textCase(style.sectionCase)
+            .font(style.font(11, .semibold))
             .kerning(0.5)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(color.map { AnyShapeStyle($0) } ?? style.inkSecondary)
             .padding(.horizontal, 10)
+            .padding(.bottom, 6)
             .frame(maxWidth: .infinity, minHeight: SearchView.headerHeight, maxHeight: SearchView.headerHeight, alignment: .bottomLeading)
     }
 }
@@ -192,18 +240,31 @@ struct SectionHeader: View {
 /// A key combo, drawn as a small cap.
 struct KeyHint: View {
     let keys: String
-    init(_ keys: String) { self.keys = keys }
+    /// The footer's Return hint, the one cap a theme may colour on its own.
+    let primary: Bool
+    /// On the selected row, where a theme may need another ink for the cap to read.
+    let onSelection: Bool
+    @Environment(\.panelStyle) private var style
+
+    init(_ keys: String, primary: Bool = false, onSelection: Bool = false) {
+        self.keys = keys
+        self.primary = primary
+        self.onSelection = onSelection
+    }
 
     var body: some View {
+        let fill = primary ? style.primaryKey.map { AnyShapeStyle($0) } ?? style.keyCap : style.keyCap
+        let selectedInk = onSelection ? style.selectedKeyInk : nil
+        let ink = primary ? style.primaryKeyInk.map { AnyShapeStyle($0) } ?? style.keyCapInk : selectedInk ?? style.keyCapInk
+        let edge = primary && style.primaryKey != nil ? AnyShapeStyle(Color.clear) : selectedInk ?? style.keyCapEdge
+        let shape = RoundedRectangle(cornerRadius: style.capRadius, style: .continuous)
         Text(keys)
-            .font(.system(size: 11, weight: .medium, design: .rounded))
-            .foregroundStyle(.secondary)
+            .font(style.capFont(11))
+            .foregroundStyle(ink)
             .padding(.horizontal, 6)
             .frame(minWidth: 20, minHeight: 20)
             .background {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(.quaternary.opacity(0.5))
-                    .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(.primary.opacity(0.08), lineWidth: 1))
+                shape.fill(fill).overlay(shape.strokeBorder(edge, lineWidth: 1))
             }
     }
 }
@@ -214,11 +275,14 @@ struct SelectionBackground: View {
     let accent: Color
     let useGlass: Bool
     var cornerRadius: CGFloat = 8
+    @Environment(\.panelStyle) private var style
 
     var body: some View {
         if isSelected {
             let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            if #available(macOS 26.0, *), useGlass {
+            if let fill = style.selection {
+                shape.fill(fill)
+            } else if #available(macOS 26.0, *), useGlass {
                 Color.clear.glassEffect(.regular.tint(accent.opacity(0.28)), in: shape)
             } else {
                 shape.fill(accent.opacity(0.16))
@@ -231,9 +295,10 @@ struct SelectionBackground: View {
 /// gives a short upright one for the footer's toast.
 struct PanelDivider: View {
     var vertical: CGFloat?
+    @Environment(\.panelStyle) private var style
 
     var body: some View {
-        let line = Rectangle().fill(.primary.opacity(0.08))
+        let line = Rectangle().fill(style.divider)
         if let vertical { line.frame(width: 1, height: vertical) } else { line.frame(height: 1) }
     }
 }
@@ -243,18 +308,19 @@ struct ScopeChip: View {
     let title: String
     let symbol: String?
     let accent: Color
+    @Environment(\.panelStyle) private var style
 
     var body: some View {
         HStack(spacing: 5) {
             if let symbol {
-                Image(systemName: symbol).font(.system(size: 11, weight: .medium))
+                Image(systemName: symbol).font(style.font(11, .medium))
             }
-            Text(title).font(.system(size: 13, weight: .medium))
+            Text(title).font(style.font(13, .medium))
         }
         .padding(.horizontal, 8)
         .frame(height: 24)
-        .background(SelectionBackground(isSelected: true, accent: accent, useGlass: false, cornerRadius: 6))
-        .foregroundStyle(.primary)
+        .background(SelectionBackground(isSelected: true, accent: accent, useGlass: false, cornerRadius: style.actionRadius))
+        .foregroundStyle(style.selectionInk)
         .fixedSize()
     }
 }
@@ -287,17 +353,19 @@ struct ActionChips: View {
 struct ChipLabel: View {
     let text: String
     var selected: (accent: Color, useGlass: Bool)?
+    @Environment(\.panelStyle) private var style
 
     var body: some View {
         Text(text)
-            .font(.system(size: 12, weight: .medium))
+            .font(style.font(12, .medium))
+            .foregroundStyle(selected == nil ? style.ink : style.selectionInk)
             .padding(.horizontal, 8)
             .frame(height: 22)
             .background {
                 if let selected {
-                    SelectionBackground(isSelected: true, accent: selected.accent, useGlass: selected.useGlass, cornerRadius: 6)
+                    SelectionBackground(isSelected: true, accent: selected.accent, useGlass: selected.useGlass, cornerRadius: style.actionRadius)
                 } else {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.07))
+                    RoundedRectangle(cornerRadius: style.actionRadius, style: .continuous).fill(style.quietFill)
                 }
             }
     }

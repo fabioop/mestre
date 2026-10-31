@@ -60,21 +60,6 @@ public struct Config: Codable, Equatable, Sendable {
                 scale = max(0, try c.decodeIfPresent(Double.self, forKey: .scale) ?? scale)
                 bias = try c.decodeIfPresent(Double.self, forKey: .bias) ?? bias
             }
-
-            /// "1.2" or "1.2 -5" (scale, then bias), as Settings shows it; nil for anything else.
-            public init?(parsing text: String) {
-                let parts = text.split(separator: " ").map { Double($0) }
-                guard let first = parts.first, let scale = first, parts.count <= 2, parts.allSatisfy({ $0 != nil }) else { return nil }
-                self.init(scale: max(0, scale), bias: parts.count > 1 ? parts[1]! : 0)
-            }
-
-            public var text: String {
-                bias == 0 ? Self.number(scale) : "\(Self.number(scale)) \(Self.number(bias))"
-            }
-
-            private static func number(_ value: Double) -> String {
-                value == value.rounded() ? String(Int(value)) : String(value)
-            }
         }
         /// System Settings panes sit under apps whatever the match: the bias is larger than
         /// any pane's text score, so an app that matches at all comes first.
@@ -168,6 +153,10 @@ public struct Config: Codable, Equatable, Sendable {
         public var cornerRadius: Double = 12
         public var queryFontSize: Double = 20
         public var material: Material = .glass
+        /// A theme file by name: colours, type and corners. While one is active its values win
+        /// over `material`, `accentColor`, `cornerRadius`, `fieldHeight` and `queryFontSize`.
+        /// "mestre" is the panel's own look.
+        public var theme: String = ThemeLibrary.defaultName
         /// The bar under the list: what owns the query on the left, the selected row's keys on the right.
         public var showFooter: Bool = true
         /// When more rows exist than fit, show half of the next one so the overflow is visible.
@@ -188,7 +177,7 @@ public struct Config: Codable, Equatable, Sendable {
         public enum Appearance: String, Codable, CaseIterable, Sendable {
             case system, light, dark
         }
-        /// Light or dark panel; "system" follows the system appearance.
+        /// Light or dark panel, and which palette a theme draws; "system" follows the system appearance.
         public var appearance: Appearance = .system
         /// Selection and highlight colour: "mestre" (the brand violet, per appearance), "system" or ""
         /// (the system accent), or a hex ("#ff8800") / CSS name.
@@ -196,19 +185,24 @@ public struct Config: Codable, Equatable, Sendable {
 
         public enum Accent: Equatable, Sendable {
             case system, mestre, custom(ParsedColor)
+
+            /// Nil when the value is unreadable (the app then uses the system accent).
+            public init?(parsing text: String) {
+                switch text.trimmingCharacters(in: .whitespaces).lowercased() {
+                case "", "system": self = .system
+                case "mestre": self = .mestre
+                default:
+                    guard let color = ColorParser.parse(text) else { return nil }
+                    self = .custom(color)
+                }
+            }
         }
         /// Mestre's own accent, from the app icon: violet in light, lifted for dark so symbols stay legible.
         public static let mestreAccentLight = ParsedColor(red: 0.42, green: 0.22, blue: 0.70)
         public static let mestreAccentDark = ParsedColor(red: 0.66, green: 0.55, blue: 1.0)
 
         /// `accentColor` resolved; nil when the value is unreadable (the app then uses the system accent).
-        public var accentChoice: Accent? {
-            switch accentColor.trimmingCharacters(in: .whitespaces).lowercased() {
-            case "", "system": return .system
-            case "mestre": return .mestre
-            default: return accent.map(Accent.custom)
-            }
-        }
+        public var accentChoice: Accent? { Accent(parsing: accentColor) }
 
         public enum Subtitles: String, Codable, CaseIterable, Sendable {
             /// Every row shows its second line.
@@ -228,7 +222,7 @@ public struct Config: Codable, Equatable, Sendable {
         public init() {}
 
         enum CodingKeys: String, CodingKey {
-            case width, fieldHeight, rowHeight, iconSize, maxVisibleRows, verticalPosition, cornerRadius, queryFontSize, material, appearance, accentColor, subtitles, showFooter, peekNextRow, toastSeconds, compact, completion
+            case width, fieldHeight, rowHeight, iconSize, maxVisibleRows, verticalPosition, cornerRadius, queryFontSize, material, theme, appearance, accentColor, subtitles, showFooter, peekNextRow, toastSeconds, compact, completion
         }
 
         public init(from decoder: Decoder) throws {
@@ -243,6 +237,7 @@ public struct Config: Codable, Equatable, Sendable {
             queryFontSize = max(8, try c.decodeIfPresent(Double.self, forKey: .queryFontSize) ?? queryFontSize)
             // A misspelt choice falls back to the default rather than rejecting the whole file.
             material = c.decodeChoice(forKey: .material) ?? material
+            theme = ThemeLibrary.canonicalName(try c.decodeIfPresent(String.self, forKey: .theme) ?? theme)
             appearance = c.decodeChoice(forKey: .appearance) ?? appearance
             accentColor = try c.decodeIfPresent(String.self, forKey: .accentColor) ?? accentColor
             subtitles = c.decodeChoice(forKey: .subtitles) ?? subtitles
@@ -283,15 +278,35 @@ public struct Config: Codable, Equatable, Sendable {
         /// Feature or command ids to leave out, e.g. ["dictionary", "emptyTrash"].
         public var hidden: [String] = []
 
+        public enum Layout: String, Codable, CaseIterable, Sendable {
+            case list, tiles
+        }
+        /// `list` is one row per item; `tiles` is a dashboard of clock, power, recent apps and `tiles`.
+        public var layout: Layout = .list
+        /// Feature or command ids the tile layout shows after the recent apps, first one widest. Three at most.
+        public var tiles: [String] = ["keepAwake", "clipboard", "sleep"]
+        /// Height of one row of tiles.
+        public var tileHeight: Double = 156
+        /// Shorter than this and a tile's contents spill out of its row.
+        public static let minimumTileHeight = 124.0
+        /// Recent apps that fit in their tile, whatever `recentCount` says.
+        public static let maximumTileRecents = 4
+
         public init() {}
 
-        enum CodingKeys: String, CodingKey { case sections, recentCount, hidden }
+        enum CodingKeys: String, CodingKey { case sections, recentCount, hidden, layout, tiles, tileHeight }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             if let names = try c.decodeIfPresent([String].self, forKey: .sections) { sections = Section.parse(names) }
             recentCount = max(0, try c.decodeIfPresent(Int.self, forKey: .recentCount) ?? recentCount)
             hidden = try c.decodeIfPresent([String].self, forKey: .hidden) ?? hidden
+            layout = c.decodeChoice(forKey: .layout) ?? layout
+            if let ids = try c.decodeIfPresent([String].self, forKey: .tiles) {
+                var seen: Set<String> = []
+                tiles = ids.filter { seen.insert($0).inserted }
+            }
+            tileHeight = max(Self.minimumTileHeight, try c.decodeIfPresent(Double.self, forKey: .tileHeight) ?? tileHeight)
         }
     }
 
@@ -360,7 +375,7 @@ public struct Config: Codable, Equatable, Sendable {
         public var whileCharging: Bool = false
         /// End any session when the battery drops below this percentage; 0 never does.
         public var endWhenBatteryBelow: Int = 0
-        /// Swap the menu-bar icon while a session is active.
+        /// Show the session on the menu bar icon while one is active.
         public var menuBarIcon: Bool = true
 
         public init() {}
@@ -719,6 +734,14 @@ public struct Config: Codable, Equatable, Sendable {
     }
     public var scripts = Scripts()
 
+    public struct Startup: Codable, Equatable, Sendable {
+        /// Registers Mestre as a login item, so the choice moves with the file. Nil leaves
+        /// whatever macOS has now.
+        public var launchAtLogin: Bool?
+
+        public init() {}
+    }
+
     public struct Onboarding: Codable, Equatable, Sendable {
         /// Show the welcome window at launch. The app sets this to false once it has been
         /// seen; set it back to true to see it again.
@@ -790,6 +813,7 @@ public struct Config: Codable, Equatable, Sendable {
     public var dictionary = DictionaryLookup()
     public var bookmarks = Bookmarks()
     public var colors = Colors()
+    public var startup = Startup()
     public var onboarding = Onboarding()
     public var debug = Debug()
 
@@ -808,7 +832,7 @@ public struct Config: Codable, Equatable, Sendable {
     }
 
     /// Every top-level section, in the file's order; `ConfigDocs` documents each one.
-    public enum CodingKeys: String, CodingKey, CaseIterable { case hotKey, hotkeys, keys, aliases, quicklinks, quickKeys, panel, home, search, ranking, calculator, commands, settingsPanes, processes, keepAwake, shortcuts, webSearch, windows, clipboard, snippets, paste, emoji, files, paths, dictionary, bookmarks, colors, scripts, onboarding, debug }
+    public enum CodingKeys: String, CodingKey, CaseIterable { case hotKey, hotkeys, keys, aliases, quicklinks, quickKeys, panel, home, search, ranking, calculator, commands, settingsPanes, processes, keepAwake, shortcuts, webSearch, windows, clipboard, snippets, paste, emoji, files, paths, dictionary, bookmarks, colors, scripts, startup, onboarding, debug }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -845,6 +869,7 @@ public struct Config: Codable, Equatable, Sendable {
         bookmarks = try c.decodeIfPresent(Bookmarks.self, forKey: .bookmarks) ?? Bookmarks()
         colors = try c.decodeIfPresent(Colors.self, forKey: .colors) ?? Colors()
         scripts = try c.decodeIfPresent(Scripts.self, forKey: .scripts) ?? Scripts()
+        startup = try c.decodeIfPresent(Startup.self, forKey: .startup) ?? Startup()
         onboarding = try c.decodeIfPresent(Onboarding.self, forKey: .onboarding) ?? Onboarding()
         debug = try c.decodeIfPresent(Debug.self, forKey: .debug) ?? Debug()
     }
@@ -879,6 +904,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(bookmarks, forKey: .bookmarks)
         try c.encode(colors, forKey: .colors)
         try c.encode(scripts, forKey: .scripts)
+        try c.encode(startup, forKey: .startup)
         try c.encode(onboarding, forKey: .onboarding)
         try c.encode(debug, forKey: .debug)
     }
@@ -892,8 +918,9 @@ extension KeyedDecodingContainer {
     }
 
     /// A string-backed enum matched case-insensitively; nil when missing or not one of the cases.
-    func decodeChoice<E: RawRepresentable>(forKey key: Key) -> E? where E.RawValue == String {
+    func decodeChoice<E: RawRepresentable & CaseIterable>(forKey key: Key) -> E? where E.RawValue == String {
         guard let text = try? decodeIfPresent(String.self, forKey: key) else { return nil }
-        return E(rawValue: text.trimmingCharacters(in: .whitespaces).lowercased())
+        let wanted = text.trimmingCharacters(in: .whitespaces).lowercased()
+        return E.allCases.first { $0.rawValue.lowercased() == wanted }
     }
 }

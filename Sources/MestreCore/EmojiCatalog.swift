@@ -33,18 +33,9 @@ public struct EmojiCatalog: Sendable {
         byCharacter[character].map { entries[$0] }
     }
 
-    /// Reads emoji.json. In the .app it sits in Contents/Resources (the bundle script puts
-    /// it there); under `swift test` and `swift run` it comes from SwiftPM's module bundle.
-    /// `Bundle.module` traps when its bundle is missing, so the app bundle is checked first.
-    /// Decodes ~1 800 entries: call it off the main thread.
+    /// Reads emoji.json. Decodes ~1 800 entries: call it off the main thread.
     public static func bundled() -> EmojiCatalog? {
-        let candidates = [
-            Bundle.main.url(forResource: "emoji", withExtension: "json"),
-            Bundle.main.bundleURL.appendingPathComponent("Mestre_MestreCore.bundle/emoji.json"),
-        ].compactMap { $0 }
-        let url = candidates.first { FileManager.default.fileExists(atPath: $0.path) }
-            ?? Bundle.module.url(forResource: "emoji", withExtension: "json")
-        guard let url, let data = try? Data(contentsOf: url),
+        guard let url = BundledResource.url(forResource: "emoji", withExtension: "json"), let data = try? Data(contentsOf: url),
               let entries = try? JSONDecoder().decode([EmojiEntry].self, from: data) else { return nil }
         return EmojiCatalog(entries: entries)
     }

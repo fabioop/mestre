@@ -10,13 +10,13 @@ struct ImportPage: View {
     @State private var warnings: [String] = []
 
     var body: some View {
-        Section("Raycast") {
-            Button("Import Raycast Export…") { importRaycast() }
-            Caption("Raycast keeps its data encrypted, so run its \"Export Snippets\" and \"Export Quicklinks\" commands first and pick the JSON files here. Hotkeys can't leave Raycast outside its encrypted backup; add them under Hotkeys.")
-        }
-        Section("Alfred") {
-            Button("Import from Alfred…") { importAlfred() }
-            Caption("Reads the Alfred.alfredpreferences folder: custom web searches become quicklinks, snippet collections become snippets, and workflow hotkeys that launch an app become hotkeys. Pick the folder if Alfred syncs it somewhere other than ~/Library/Application Support/Alfred.")
+        Section("Import") {
+            HStack {
+                Button("From Raycast…") { importRaycast() }
+                Button("From Alfred…") { importAlfred() }
+            }
+            Caption("Raycast: run its Export Snippets and Export Quicklinks commands first, then pick the JSON files. Its hotkeys can't be exported, so add them under Shortcuts.")
+            Caption("Alfred: brings over web searches, snippets and hotkeys that launch an app.")
         }
         if let report {
             Section("Result") {

@@ -1,192 +1,129 @@
 import MestreCore
 import SwiftUI
 
-// One page per feature section of the config. Every key has a control here.
-
-struct CalculatorPage: View {
-    @ObservedObject var settings: ConfigStore
-
-    var body: some View {
-        Section("Calculator") {
-            Toggle("Evaluate expressions", isOn: $settings.config.calculator.enabled)
-            NumberField(label: "Significant digits", value: $settings.config.calculator.precision, min: 1, max: 17)
-            Caption("Type 2*(3+4), sqrt(2), 2^10, 15 % 4 or pi*2; Return copies the result.")
-        }
-    }
-}
-
-struct CommandsPage: View {
-    @ObservedObject var settings: ConfigStore
-    private static let ids = CommandProvider.all.map(\.id).joined(separator: ", ")
-
-    var body: some View {
-        Section("System commands") {
-            Toggle("Show system commands", isOn: $settings.config.commands.enabled)
-            Toggle("Confirm destructive commands", isOn: $settings.config.commands.confirmDestructive)
-            Caption("Restart, Shut Down, Log Out and Empty Trash ask first.")
-            StringListField(label: "Hidden", values: $settings.config.commands.hidden, placeholder: "shutDown")
-            Caption("Ids: \(Self.ids).")
-        }
-    }
-}
-
-struct SettingsPanesPage: View {
-    @ObservedObject var settings: ConfigStore
-
-    var body: some View {
-        Section("System Settings panes") {
-            Toggle("Open panes by name (\"bluetooth\", \"displays\")", isOn: $settings.config.settingsPanes.enabled)
-            StringListField(label: "Hidden", values: $settings.config.settingsPanes.hidden, placeholder: "com.apple.Siri-Settings.extension")
-            Caption("Hide a pane by its title or bundle identifier, one per line.")
-        }
-    }
-}
-
-struct ProcessesPage: View {
-    @ObservedObject var settings: ConfigStore
-
-    var body: some View {
-        Section("Kill process") {
-            Toggle("List running processes", isOn: $settings.config.processes.enabled)
-            StringField(label: "Keyword", value: $settings.config.processes.keyword, placeholder: "kill")
-            Caption("Type the keyword for processes by memory, then a name to filter; Return quits, ⌘⇧K force-quits.")
-        }
-    }
-}
-
-struct KeepAwakePage: View {
-    @ObservedObject var settings: ConfigStore
-    @ObservedObject var manager: KeepAwakeManager
-
-    var body: some View {
-        Section("Keep awake") {
-            Toggle("Keep the Mac awake on request", isOn: $settings.config.keepAwake.enabled)
-            StringField(label: "Keyword", value: $settings.config.keepAwake.keyword, placeholder: "awake")
-            Caption("Type the keyword for the options, or \"awake 45m\", \"awake until 18:30\", \"awake off\". \"Keep Awake\" is also a command, so a hotkey can target it (\"hyper+a = keepAwake\").")
-            Toggle("Let the display sleep (keep only the system awake)", isOn: $settings.config.keepAwake.allowDisplaySleep)
-            Toggle("Show a cup in the menu bar while active", isOn: $settings.config.keepAwake.menuBarIcon)
-            StringListField(label: "Timed options (minutes)", values: durations, placeholder: "15")
-            LabeledContent("Now") {
-                HStack {
-                    Text(manager.session?.summary() ?? "Not keeping awake").foregroundStyle(.secondary)
-                    Button(manager.session == nil ? "Start" : "Stop") { manager.toggle() }
-                }
-            }
-        }
-        Section("Triggers") {
-            StringListField(label: "While these apps run", values: $settings.config.keepAwake.whileRunningApps, placeholder: "Xcode")
-            Caption("App names or bundle identifiers, one per line.")
-            Toggle("While charging", isOn: $settings.config.keepAwake.whileCharging)
-            NumberField(label: "End when battery is below", value: $settings.config.keepAwake.endWhenBatteryBelow, suffix: "%", min: 0, max: 100)
-            Caption("0 never ends a session for the battery. A session you start yourself outranks the triggers.")
-        }
-    }
-
-    private var durations: Binding<[String]> {
-        Binding(
-            get: { settings.config.keepAwake.durationsMinutes.map(String.init) },
-            set: { settings.config.keepAwake.durationsMinutes = $0.compactMap(Int.init).filter { $0 > 0 } }
-        )
-    }
-}
-
-struct ShortcutsPage: View {
-    @ObservedObject var settings: ConfigStore
-
-    var body: some View {
-        Section("Apple Shortcuts") {
-            Toggle("Your shortcuts as results", isOn: $settings.config.shortcuts.enabled)
-            NumberField(label: "Re-read the list every", value: $settings.config.shortcuts.refreshIntervalSeconds, suffix: "s", min: 0)
-            Caption("Return runs a shortcut; ⌘K › Open in Shortcuts edits it.")
-        }
-    }
-}
-
-struct WebPage: View {
-    @ObservedObject var settings: ConfigStore
-
-    var body: some View {
-        Section("Web") {
-            Toggle("Open typed addresses and offer a web search", isOn: $settings.config.webSearch.enabled)
-            StringField(label: "Search engine", value: $settings.config.webSearch.engine, placeholder: "https://duckduckgo.com/?q={query}")
-            Caption("{query} is replaced with what you typed. \"Search the web for …\" appears when nothing else matches.")
-        }
-    }
-}
-
-struct WindowsPage: View {
-    @ObservedObject var settings: ConfigStore
-    private static let layouts = WindowLayout.allCases.map(\.rawValue).joined(separator: ", ")
-    @State private var hasPermission = WindowManager.hasPermission
-
-    var body: some View {
-        Section("Window management") {
-            Toggle("Window layouts and ⌃⌥ shortcuts", isOn: $settings.config.windows.enabled)
-            NumberField(label: "Gap between windows", value: $settings.config.windows.gap, suffix: "pt", min: 0)
-            StringListField(label: "Hidden layouts", values: $settings.config.windows.hidden, placeholder: "almostMaximize")
-            Caption("Layouts: \(Self.layouts). Shortcuts are edited under Hotkeys.")
-        }
-        Section("Open windows") {
-            Toggle("Open windows as results", isOn: $settings.config.windows.listWindows)
-            NumberField(label: "Re-read at most every", value: $settings.config.windows.listRefreshSeconds, suffix: "s", min: 0)
-        }
-        Section("Permission") {
-            LabeledContent("Accessibility access") {
-                if hasPermission {
-                    Text("Granted").foregroundStyle(.secondary)
-                } else {
-                    Button("Grant…") {
-                        WindowManager.ensurePermission()
-                        WindowManager.openAccessibilitySettings()
-                    }
-                }
-            }
-            Caption("Needed to move windows and to paste. After rebuilding the app, macOS may ask again.")
-        }
-        .onAppear { hasPermission = WindowManager.hasPermission }
-    }
-}
-
-struct ClipboardPage: View {
+/// One switch per feature; the row opens to show that feature's options.
+struct FeaturesPage: View {
     @ObservedObject var settings: ConfigStore
     let viewModel: SearchViewModel
+    let expander: TextExpander
+    @Binding var open: SettingsFeature?
 
     var body: some View {
-        Section("Clipboard history") {
-            Toggle("Keep clipboard history", isOn: $settings.config.clipboard.enabled)
-            StringField(label: "Keyword", value: $settings.config.clipboard.keyword, placeholder: "clip")
-            NumberField(label: "Items kept", value: $settings.config.clipboard.maxItems, min: 1, max: 10_000)
-            NumberField(label: "Drop entries after", value: $settings.config.clipboard.maxAgeDays, suffix: "days", min: 0)
-            NumberField(label: "Largest text kept", value: $settings.config.clipboard.maxTextBytes, suffix: "bytes", min: 1)
-            NumberField(label: "Check the clipboard every", value: $settings.config.clipboard.pollIntervalSeconds, suffix: "s", min: 0.1, max: 10)
-            StringListField(label: "Never record from", values: $settings.config.clipboard.excludeApps, placeholder: "com.1password.1password")
-            Button("Clear History") { viewModel.clipboard.monitor.removeAll() }
-            Caption("Stored as owner-only files under ~/Library/Application Support/Mestre/Clipboard. Anything copied from a non-excluded app is kept in plain text there; concealed or transient content never is. Pasting into the previous app needs Accessibility access; otherwise Return copies.")
+        ForEach(SettingsFeature.allCases, id: \.self) { feature in
+            Section {
+                header(feature).setting("feature." + feature.rawValue)
+                if open == feature, showsOptions(feature) {
+                    options(feature)
+                }
+            }
+        }
+        ResetSection(settings: settings, page: .features)
+    }
+
+    private func header(_ feature: SettingsFeature) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                guard showsOptions(feature) else { return }
+                withAnimation(.easeOut(duration: 0.15)) { open = open == feature ? nil : feature }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: feature.symbol).frame(width: 22).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(feature.title)
+                        Text(feature.summary).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if showsOptions(feature) {
+                        Image(systemName: open == feature ? "chevron.down" : "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            // Otherwise the first row wears a focus ring as soon as the page opens.
+            .focusEffectDisabled()
+            Toggle(feature.title, isOn: enabled(feature)).labelsHidden().toggleStyle(.switch)
+        }
+    }
+
+    private func enabled(_ feature: SettingsFeature) -> Binding<Bool> {
+        Binding(get: { settings.config[keyPath: feature.isEnabled] }, set: { settings.config[keyPath: feature.isEnabled] = $0 })
+    }
+
+    private func showsOptions(_ feature: SettingsFeature) -> Bool {
+        feature != .appleShortcuts && (settings.config[keyPath: feature.isEnabled] || feature.optionsOutliveSwitch)
+    }
+
+    @ViewBuilder private func options(_ feature: SettingsFeature) -> some View {
+        switch feature {
+        case .clipboard: ClipboardOptions(settings: settings, viewModel: viewModel)
+        case .snippets: SnippetOptions(settings: settings, expander: expander, apps: viewModel.apps.index)
+        case .calculator: IntStepper(label: "Significant digits", value: $settings.config.calculator.precision, range: 1...17).setting("calculator.precision")
+        case .emoji: EmojiOptions(settings: settings)
+        case .files: FileOptions(settings: settings)
+        case .folders: FolderOptions(settings: settings)
+        case .dictionary: DictionaryOptions(settings: settings)
+        case .bookmarks: BookmarkOptions(settings: settings)
+        case .colours: ColourOptions(settings: settings)
+        case .commands: CommandOptions(settings: settings)
+        case .systemSettings: PaneOptions(settings: settings, panes: viewModel.settingsPanes.panes)
+        case .processes: KeywordField(label: "Keyword", value: $settings.config.processes.keyword, placeholder: "kill").setting("processes.keyword")
+        case .keepAwake: KeepAwakeOptions(settings: settings, manager: viewModel.keepAwake.manager, apps: viewModel.apps.index)
+        case .appleShortcuts: EmptyView()
+        case .web: WebOptions(settings: settings)
+        case .windows: WindowOptions(settings: settings)
         }
     }
 }
 
-struct SnippetsPage: View {
+private struct ClipboardOptions: View {
     @ObservedObject var settings: ConfigStore
-    let expander: TextExpander
-    @State private var hasInputMonitoring = TextExpander.hasInputMonitoring
+    @ObservedObject var apps: AppIndex
+    let viewModel: SearchViewModel
+
+    init(settings: ConfigStore, viewModel: SearchViewModel) {
+        self.settings = settings
+        self.viewModel = viewModel
+        apps = viewModel.apps.index
+    }
 
     var body: some View {
-        Section("Snippets") {
-            Toggle("Snippets in results", isOn: $settings.config.snippets.enabled)
-            ItemListEditor(items: $settings.config.snippets.items, addTitle: "Add Snippet", template: { Snippet(name: $0, text: "") }) { snippet, nameTaken in
-                VStack(spacing: 4) {
-                    NameKeywordRow(name: snippet.name, keyword: snippet.keyword, nameTaken: nameTaken, keywordPlaceholder: "/keyword")
-                    CommittedField(value: snippet.text, render: { $0 }, parse: { $0 }, placeholder: "Text", width: 276, multiline: true)
-                }
-            }
-            Caption("Placeholders: {date}, {time}, {datetime}, {date:<format>}, {clipboard}, {uuid}, {cursor}.")
-            StringField(label: "Date format", value: $settings.config.snippets.dateFormat, placeholder: "yyyy-MM-dd")
-            StringField(label: "Time format", value: $settings.config.snippets.timeFormat, placeholder: "HH:mm")
-        }
-        Section("Text expansion") {
-            Toggle("Expand keywords while typing anywhere", isOn: $settings.config.snippets.expansion.enabled)
-            StringListField(label: "Never expand in", values: $settings.config.snippets.expansion.excludeApps, placeholder: "com.apple.Terminal")
+        KeywordField(label: "Keyword", value: $settings.config.clipboard.keyword, placeholder: "clip").setting("clipboard.keyword")
+        PresetPicker(label: "Items kept", value: $settings.config.clipboard.maxItems,
+                     options: [(100, "100"), (500, "500"), (1000, "1,000"), (5000, "5,000")])
+            .setting("clipboard.items")
+        PresetPicker(label: "Drop entries after", value: $settings.config.clipboard.maxAgeDays,
+                     options: [(1, "1 day"), (7, "1 week"), (30, "1 month"), (90, "3 months"), (365, "1 year"), (0, "Never")]) { "\($0) days" }
+            .setting("clipboard.age")
+        AppListField(label: "Never record from", values: $settings.config.clipboard.excludeApps, apps: apps.apps).setting("clipboard.exclude")
+        Button("Clear History") { viewModel.clipboard.monitor.removeAll() }
+        Caption("Stored in plain text on this Mac, readable only by you. Concealed content, like passwords, is never kept.")
+    }
+}
+
+private struct SnippetOptions: View {
+    @ObservedObject var settings: ConfigStore
+    let expander: TextExpander
+    @ObservedObject var apps: AppIndex
+    @State private var hasInputMonitoring = TextExpander.hasInputMonitoring
+
+    private func example(_ format: String) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = format
+        return formatter.string(from: Date())
+    }
+
+    private func formats(_ formats: [String]) -> [(value: String, title: String)] {
+        formats.map { ($0, example($0)) }
+    }
+
+    var body: some View {
+        PresetPicker(label: "Date format", value: $settings.config.snippets.dateFormat, options: formats(Config.Snippets.dateFormats), custom: example)
+            .setting("snippets.formats")
+        PresetPicker(label: "Time format", value: $settings.config.snippets.timeFormat, options: formats(Config.Snippets.timeFormats), custom: example)
+        Toggle("Expand keywords while typing anywhere", isOn: $settings.config.snippets.expansion.enabled).setting("snippets.expansion")
+        if settings.config.snippets.expansion.enabled {
+            AppListField(label: "Never expand in", values: $settings.config.snippets.expansion.excludeApps, apps: apps.apps).setting("snippets.exclude")
             LabeledContent("Input Monitoring access") {
                 if hasInputMonitoring {
                     Text("Granted").foregroundStyle(.secondary)
@@ -194,106 +131,183 @@ struct SnippetsPage: View {
                     Button("Grant…") { TextExpander.requestInputMonitoring() }
                 }
             }
+            .onAppear { hasInputMonitoring = TextExpander.hasInputMonitoring }
             LabeledContent("Expansion") { Text(expander.isActive ? "Active" : "Off").foregroundStyle(.secondary) }
-            Caption("Needs Input Monitoring (to see keys) and Accessibility (to replace them). Only the last few typed characters are kept in memory; a keyword fires after a space or punctuation.")
+            Caption("Pasting the text also needs Accessibility, granted under Windows.")
         }
-        Section("Pasting") {
-            NumberField(label: "Wait before ⌘V", value: $settings.config.paste.delaySeconds, suffix: "s", min: 0, max: 2)
-            NumberField(label: "Wait before moving to {cursor}", value: $settings.config.paste.cursorDelaySeconds, suffix: "s", min: 0, max: 2)
-            Caption("Slow apps need a little longer to become key again after the panel closes.")
-        }
-        .onAppear { hasInputMonitoring = TextExpander.hasInputMonitoring }
+        Caption("Add and edit snippets under Library.")
     }
 }
 
-struct EmojiPage: View {
+private struct EmojiOptions: View {
     @ObservedObject var settings: ConfigStore
 
     var body: some View {
-        Section("Emoji and symbols") {
-            Toggle("Emoji as results", isOn: $settings.config.emoji.enabled)
-            StringField(label: "Keyword", value: $settings.config.emoji.keyword, placeholder: "emoji")
-            StringField(label: "Prefix", value: $settings.config.emoji.prefix, placeholder: ":")
-            NumberField(label: "Recently used shown", value: $settings.config.emoji.recentCount, min: 0)
-            Caption("Type :fire or emoji fire; Return pastes. While the query starts with the keyword only emoji are listed.")
+        KeywordField(label: "Keyword", value: $settings.config.emoji.keyword, placeholder: "emoji").setting("emoji.keyword")
+        IntStepper(label: "Recent emoji shown", value: $settings.config.emoji.recentCount, range: 0...48, step: 4).setting("emoji.recent")
+    }
+}
+
+private struct FileOptions: View {
+    @ObservedObject var settings: ConfigStore
+
+    var body: some View {
+        KeywordField(label: "Keyword", value: $settings.config.files.keyword, placeholder: "file").setting("files.keyword")
+        FolderListField(label: "Search in", values: $settings.config.files.folders).setting("files.folders")
+        FolderListField(label: "Skip", values: $settings.config.files.excludedFolders).setting("files.exclude")
+        IntStepper(label: "Results", value: $settings.config.files.maxResults, range: 5...100, step: 5).setting("files.results")
+    }
+}
+
+private struct FolderOptions: View {
+    @ObservedObject var settings: ConfigStore
+
+    var body: some View {
+        Toggle("Show hidden files", isOn: $settings.config.paths.showHidden).setting("paths.hidden")
+        IntStepper(label: "Entries listed", value: $settings.config.paths.maxResults, range: 5...100, step: 5).setting("paths.results")
+    }
+}
+
+private struct DictionaryOptions: View {
+    @ObservedObject var settings: ConfigStore
+
+    var body: some View {
+        KeywordField(label: "Keyword", value: $settings.config.dictionary.keyword, placeholder: "define").setting("dictionary.keyword")
+        IntStepper(label: "Lines shown", value: $settings.config.dictionary.maxLines, range: 1...20).setting("dictionary.lines")
+    }
+}
+
+private struct BookmarkOptions: View {
+    @ObservedObject var settings: ConfigStore
+
+    var body: some View {
+        KeywordField(label: "Keyword", value: $settings.config.bookmarks.keyword, placeholder: "bm").setting("bookmarks.keyword")
+        Toggle("Open in the browser they came from", isOn: $settings.config.bookmarks.openInSourceBrowser).setting("bookmarks.source")
+        Toggle("Also answer ordinary searches", isOn: $settings.config.bookmarks.searchEverywhere).setting("bookmarks.everywhere")
+        ShownChecklist(label: "Browsers", choices: Browser.allCases.map { Choice(id: $0.rawValue, title: $0.name) }, hidden: $settings.config.bookmarks.excludeBrowsers)
+            .setting("bookmarks.browsers")
+        Caption("Safari needs Full Disk Access, so it's left out.")
+    }
+}
+
+private struct ColourOptions: View {
+    @ObservedObject var settings: ConfigStore
+    private static let formats = [("hex", "Hex"), ("rgb", "RGB"), ("hsl", "HSL"), ("swiftui", "SwiftUI")].map { Choice(id: $0.0, title: $0.1) }
+
+    var body: some View {
+        OrderedChecklist(label: "Formats", choices: Self.formats, chosen: $settings.config.colors.formats).setting("colors.formats")
+        Toggle("CSS colour names, like \"coral\"", isOn: $settings.config.colors.names).setting("colors.names")
+        Caption("Off by default, so \"tan\" or \"orange\" still find apps.")
+    }
+}
+
+private struct CommandOptions: View {
+    @ObservedObject var settings: ConfigStore
+    private static let commands = CommandProvider.all.map { Choice(id: $0.id, title: $0.title, symbol: $0.iconSymbol) }
+
+    var body: some View {
+        Toggle("Confirm destructive commands", isOn: $settings.config.commands.confirmDestructive).setting("commands.confirm")
+        ShownChecklist(label: "Commands shown", choices: Self.commands, hidden: $settings.config.commands.hidden, matchesTitle: true).setting("commands.shown")
+    }
+}
+
+private struct PaneOptions: View {
+    @ObservedObject var settings: ConfigStore
+    let panes: [SettingsPane]
+
+    var body: some View {
+        ShownChecklist(label: "Panes shown", choices: panes.map { Choice(id: $0.bundleIdentifier, title: $0.title) }, hidden: $settings.config.settingsPanes.hidden, matchesTitle: true)
+            .setting("panes.shown")
+    }
+}
+
+private struct KeepAwakeOptions: View {
+    @ObservedObject var settings: ConfigStore
+    @ObservedObject var manager: KeepAwakeManager
+    @ObservedObject var apps: AppIndex
+    private static let durationChoices: [Choice] = [5, 10, 15, 30, 45, 60, 120, 240, 480].map { minutes in
+        let title = minutes < 60 ? "\(minutes) minutes" : minutes == 60 ? "1 hour" : "\(minutes / 60) hours"
+        return Choice(id: String(minutes), title: title)
+    }
+
+    private var durations: Binding<[String]> {
+        Binding(
+            get: { settings.config.keepAwake.durationsMinutes.map(String.init) },
+            set: { settings.config.keepAwake.durationsMinutes = $0.compactMap(Int.init).sorted() }
+        )
+    }
+
+    var body: some View {
+        LabeledContent("Now") {
+            HStack {
+                Text(manager.session?.summary() ?? "Not keeping awake").foregroundStyle(.secondary)
+                Button(manager.session == nil ? "Start" : "Stop") { manager.toggle() }
+            }
+        }
+        KeywordField(label: "Keyword", value: $settings.config.keepAwake.keyword, placeholder: "awake").setting("awake.keyword")
+        Toggle("Let the display sleep", isOn: $settings.config.keepAwake.allowDisplaySleep).setting("awake.display")
+        Toggle("Show a dot on the menu bar icon while active", isOn: $settings.config.keepAwake.menuBarIcon).setting("awake.menuBar")
+        DisclosureGroup("Timed options") { Checklist(choices: Self.durationChoices, chosen: durations) }.setting("awake.durations")
+        AppListField(label: "Stay awake while these apps run", values: $settings.config.keepAwake.whileRunningApps, apps: apps.apps).setting("awake.apps")
+        Toggle("Stay awake while charging", isOn: $settings.config.keepAwake.whileCharging).setting("awake.charging")
+        PresetPicker(label: "End when battery is below", value: $settings.config.keepAwake.endWhenBatteryBelow,
+                     options: [(0, "Never"), (10, "10%"), (20, "20%"), (30, "30%"), (50, "50%")]) { "\($0)%" }
+            .setting("awake.battery")
+    }
+}
+
+private struct WebOptions: View {
+    @ObservedObject var settings: ConfigStore
+    @State private var isCustom = false
+
+    private static let customTag = "custom"
+
+    private var engine: Binding<String> {
+        Binding(
+            get: { !isCustom && Config.WebSearch.engines.contains { $0.url == settings.config.webSearch.engine } ? settings.config.webSearch.engine : Self.customTag },
+            set: { new in
+                isCustom = new == Self.customTag
+                if !isCustom { settings.config.webSearch.engine = new }
+            }
+        )
+    }
+
+    var body: some View {
+        Picker("Search engine", selection: engine) {
+            ForEach(Config.WebSearch.engines, id: \.url) { Text($0.name).tag($0.url) }
+            Divider()
+            Text("Custom").tag(Self.customTag)
+        }
+        .setting("web.engine")
+        if engine.wrappedValue == Self.customTag {
+            CommittedField(label: "Search URL", value: $settings.config.webSearch.engine, render: { $0 }, parse: { $0.contains("{query}") ? $0 : nil }, placeholder: "https://example.com/?q={query}", width: 280)
         }
     }
 }
 
-struct FilesPage: View {
+private struct WindowOptions: View {
     @ObservedObject var settings: ConfigStore
+    @State private var hasPermission = WindowManager.hasPermission
+    private static let layouts = WindowLayout.allCases.map { Choice(id: $0.rawValue, title: $0.title) }
 
     var body: some View {
-        Section("File search") {
-            Toggle("Find files through Spotlight", isOn: $settings.config.files.enabled)
-            StringField(label: "Keyword", value: $settings.config.files.keyword, placeholder: "file")
-            StringListField(label: "Search in", values: $settings.config.files.folders, placeholder: "~")
-            StringListField(label: "Skip", values: $settings.config.files.excludedFolders, placeholder: "~/Library")
-            NumberField(label: "Results", value: $settings.config.files.maxResults, min: 1)
-            NumberField(label: "Minimum query length", value: $settings.config.files.minimumLength, min: 1)
-            NumberField(label: "Wait after typing", value: $settings.config.files.debounceSeconds, suffix: "s", min: 0)
-            Caption("Return opens, ⌘Y Quick Looks, ⌘↩ reveals, ⌘⇧C copies the path.")
+        Toggle("Open windows as results", isOn: $settings.config.windows.listWindows).setting("windows.list")
+        if settings.config.windows.enabled {
+            ValueSlider(label: "Gap between windows", points: $settings.config.windows.gap, range: 0...40).setting("windows.gap")
+            ShownChecklist(label: "Layouts shown", choices: Self.layouts, hidden: $settings.config.windows.hidden, matchesTitle: true).setting("windows.shown")
         }
-    }
-}
-
-struct PathsPage: View {
-    @ObservedObject var settings: ConfigStore
-
-    var body: some View {
-        Section("Browse folders") {
-            Toggle("Browse by typing a path (~/Doc, /Applications/)", isOn: $settings.config.paths.enabled)
-            Toggle("Show hidden files", isOn: $settings.config.paths.showHidden)
-            NumberField(label: "Entries listed", value: $settings.config.paths.maxResults, min: 1)
-            Caption("Return steps into a folder or opens a file.")
+        LabeledContent("Accessibility access") {
+            if hasPermission {
+                Text("Granted").foregroundStyle(.secondary)
+            } else {
+                Button("Grant…") {
+                    WindowManager.ensurePermission()
+                    WindowManager.openAccessibilitySettings()
+                }
+            }
         }
-    }
-}
-
-struct DictionaryPage: View {
-    @ObservedObject var settings: ConfigStore
-
-    var body: some View {
-        Section("Dictionary") {
-            Toggle("Define words", isOn: $settings.config.dictionary.enabled)
-            StringField(label: "Keyword", value: $settings.config.dictionary.keyword, placeholder: "define")
-            NumberField(label: "Lines shown", value: $settings.config.dictionary.maxLines, min: 1)
-            NumberField(label: "Wait after typing", value: $settings.config.dictionary.debounceSeconds, suffix: "s", min: 0)
-            Caption("Uses the system dictionary; Return opens Dictionary.app.")
-        }
-    }
-}
-
-struct BookmarksPage: View {
-    @ObservedObject var settings: ConfigStore
-    private static let browsers = Browser.allCases.map(\.rawValue).joined(separator: ", ")
-
-    var body: some View {
-        Section("Browser bookmarks") {
-            Toggle("Search bookmarks", isOn: $settings.config.bookmarks.enabled)
-            StringField(label: "Keyword", value: $settings.config.bookmarks.keyword, placeholder: "bm")
-            Toggle("Open in the browser they came from", isOn: $settings.config.bookmarks.openInSourceBrowser)
-            StringListField(label: "Skip browsers", values: $settings.config.bookmarks.excludeBrowsers, placeholder: "arc")
-            Caption("Browsers: \(Self.browsers). Safari needs Full Disk Access and is left out.")
-        }
-        Section("Without the keyword") {
-            Toggle("Bookmarks also answer ordinary queries", isOn: $settings.config.bookmarks.searchEverywhere)
-            NumberField(label: "Minimum query length", value: $settings.config.bookmarks.minimumLength, min: 1)
-            NumberField(label: "Rank below apps by", value: $settings.config.bookmarks.penalty, min: 0)
-        }
-    }
-}
-
-struct ColorsPage: View {
-    @ObservedObject var settings: ConfigStore
-
-    var body: some View {
-        Section("Colours") {
-            Toggle("Convert colours (#ff8800, rgb(), hsl())", isOn: $settings.config.colors.enabled)
-            StringListField(label: "Rows and order", values: $settings.config.colors.formats, placeholder: "hex")
-            Caption("Formats: hex, rgb, hsl, swiftui.")
-            Toggle("CSS colour names (\"coral\")", isOn: $settings.config.colors.names)
-            Caption("Off so \"tan\" or \"orange\" still find apps.")
-        }
+        .setting("windows.permission")
+        .onAppear { hasPermission = WindowManager.hasPermission }
+        Caption("Needed to move windows and to paste. Layout shortcuts are under Shortcuts.")
     }
 }

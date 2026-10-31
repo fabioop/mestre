@@ -13,6 +13,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var openMenuItem: NSMenuItem!
     private var cancellables = Set<AnyCancellable>()
+    /// The `panel` section as the file has it; the view model gets it with the theme on top.
+    private var panelSettings = Config.Panel()
+    /// The theme last asked for.
+    private var requestedTheme = ThemeLibrary.defaultName
+    private var activeTheme = Theme()
+    /// Bumped per load: one that finishes after a newer one started is dropped, same name or not.
+    private var themeLoads = 0
+    /// What `viewModel.style` was last resolved from.
+    private var styled: (theme: Theme, dark: Bool)?
+    private var themeFolderWatcher: DirectoryWatcher?
+    private var watchedThemeFolder: URL?
+    private var themeFileWatcher: FileWatcher?
+    private var watchedThemeFile: URL?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         panelController = SearchPanelController(viewModel: viewModel)
@@ -47,9 +60,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         func value(after flag: String) -> String? {
             arguments.firstIndex(of: flag).flatMap { arguments[safe: $0 + 1] }
         }
-        // `--welcome-screenshot /tmp/welcome.png` writes the welcome window the same way.
+        // `--welcome-screenshot /tmp/welcome.png [--welcome-step 2]` writes the welcome window the same way.
         if let path = value(after: "--welcome-screenshot") {
-            showWelcome()
+            openWelcome(step: value(after: "--welcome-step").flatMap(Int.init) ?? 0)
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
                 self?.welcomeWindow?.window.map { SearchPanelController.writeScreenshot(of: $0, to: URL(fileURLWithPath: path)) }
             }
@@ -62,6 +75,83 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
                 self?.panelController.writeScreenshot(to: URL(fileURLWithPath: path))
             }
+        }
+    }
+
+    // MARK: Theme
+
+    /// Reads the theme off the main thread. It runs when the config names another theme or a
+    /// theme file changes, never on the show or search path.
+    private func loadTheme(_ name: String) {
+        requestedTheme = name
+        themeLoads &+= 1
+        let load = themeLoads
+        let folder = ThemeLibrary.userDirectory(configFile: settings.fileURL)
+        let configFolder = settings.fileURL.deletingLastPathComponent()
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let loaded = ThemeLibrary.load(name, userDirectory: folder)
+            let file = ThemeLibrary.fileURL(for: loaded.name, userDirectory: folder)
+            // The config folder only until the themes folder appears: every save lands in it.
+            let watched = FileManager.default.fileExists(atPath: folder.path) ? folder : configFolder
+            await self?.apply(loaded, load: load, file: file, folder: folder, watched: watched)
+        }
+    }
+
+    private func apply(_ loaded: ThemeLibrary.Loaded, load: Int, file: URL?, folder: URL, watched: URL) {
+        guard load == themeLoads else { return }
+        if settings.themeError != loaded.error { settings.themeError = loaded.error }
+        if activeTheme != loaded.theme {
+            activeTheme = loaded.theme
+            applyThemeLook()
+        }
+        watchThemes(folder: folder, file: file, watched: watched)
+    }
+
+    /// The config folder is only watched for the themes folder appearing; a save there is no news.
+    private func themeFilesChanged() {
+        let folder = ThemeLibrary.userDirectory(configFile: settings.fileURL)
+        let isWaiting = watchedThemeFolder != folder
+        Task.detached(priority: .utility) { [weak self] in
+            guard !isWaiting || FileManager.default.fileExists(atPath: folder.path) else { return }
+            await self?.reloadThemeFiles()
+        }
+    }
+
+    private func reloadThemeFiles() {
+        settings.themeFilesRevision &+= 1
+        loadTheme(requestedTheme)
+    }
+
+    /// Runs when the theme, the panel settings or the system appearance change, never on the
+    /// show or search path.
+    private func applyThemeLook() {
+        let systemIsDark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let theme = activeTheme
+        let dark = theme.drawsDark(setting: panelSettings.appearance, systemIsDark: systemIsDark)
+        if styled?.theme != theme || styled?.dark != dark {
+            viewModel.style = PanelStyle(theme: theme, dark: dark)
+            styled = (theme, dark)
+        }
+        viewModel.layout = theme.applied(to: panelSettings, dark: dark)
+        let decided = theme.overrides(dark: dark)
+        if settings.themeOverrides != decided { settings.themeOverrides = decided }
+    }
+
+    /// Saving a theme file applies it: the folder reports files replaced or added (or the config
+    /// folder, the themes folder appearing), the file reports a write into it.
+    private func watchThemes(folder: URL, file: URL?, watched: URL) {
+        if watched != watchedThemeFolder {
+            watchedThemeFolder = watched
+            themeFolderWatcher = DirectoryWatcher(directories: [watched]) { [weak self] in self?.themeFilesChanged() }
+        }
+        let userFile = file.flatMap { $0.path.hasPrefix(folder.path) ? $0 : nil }
+        if userFile != watchedThemeFile {
+            watchedThemeFile = userFile
+            themeFileWatcher = userFile.map { url in
+                FileWatcher(file: url) { [weak self] in self?.themeFilesChanged() }
+            }
+        } else {
+            themeFileWatcher?.rearm()
         }
     }
 
@@ -88,12 +178,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func togglePanel() { panelController.toggle() }
 
-    /// A cup while the Mac is being kept awake (unless `keepAwake.menuBarIcon` is off).
+    /// The M, with a dot for what's active. Keep Awake is the only feature with a
+    /// running state so far (and `keepAwake.menuBarIcon` can keep it out of the icon).
     private func updateStatusIcon(session: KeepAwakeSession?, showCup: Bool) {
         guard let button = statusItem?.button else { return }
-        let awake = session != nil && showCup
-        button.image = NSImage(systemSymbolName: awake ? "cup.and.saucer.fill" : "sparkle.magnifyingglass", accessibilityDescription: "Mestre")
-            ?? NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Mestre")
+        button.image = StatusMark(activeCount: session != nil && showCup ? 1 : 0).image
         button.toolTip = session.map { "Mestre: " + $0.summary().lowercased() } ?? "Mestre"
     }
 
@@ -108,14 +197,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindow?.show()
     }
 
-    @objc private func showWelcome() {
-        if welcomeWindow == nil {
+    @objc private func showWelcome() { openWelcome(step: 0) }
+
+    /// Starts over unless it's already up, so the guide always opens on its first step.
+    private func openWelcome(step: Int) {
+        if welcomeWindow?.window?.isVisible != true {
             welcomeWindow = WelcomeWindowController(
                 settings: settings,
+                viewModel: viewModel,
+                step: step,
+                tryQuery: { [weak self] query in self?.openPanel(query: query) },
+                retryHotKeys: { [weak self] in self?.registerHotKeys() },
                 onGetStarted: { [weak self] in self?.panelController.show() },
                 onOpenSettings: { [weak self] in self?.showSettings() })
         }
         welcomeWindow?.show()
+    }
+
+    private func openPanel(query: String) {
+        if !panelController.panel.isVisible { panelController.show() }
+        viewModel.query = query
+        viewModel.requestFocus()
     }
 
     // MARK: Confirmation
@@ -126,7 +228,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let previous = NSWorkspace.shared.frontmostApplication
         let alert = NSAlert()
         alert.messageText = "\(title)?"
-        alert.informativeText = "Turn this off in Settings › Commands › Confirm destructive commands."
+        alert.informativeText = "Turn this off in Settings › Features › Commands."
         alert.addButton(withTitle: title)
         alert.addButton(withTitle: "Cancel")
         NSApp.activate(ignoringOtherApps: true)
@@ -176,7 +278,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.$config
             .map(\.panel)
             .removeDuplicates()
-            .sink { [weak self] panel in self?.viewModel.layout = panel }
+            .sink { [weak self] panel in
+                guard let self else { return }
+                self.panelSettings = panel
+                self.applyThemeLook()
+            }
+            .store(in: &cancellables)
+
+        // The system switching between light and dark, by hand or on its schedule.
+        NSApp.publisher(for: \.effectiveAppearance)
+            .dropFirst()
+            .sink { [weak self] _ in self?.applyThemeLook() }
+            .store(in: &cancellables)
+
+        // The file carries the login item from Mac to Mac; the system call stays off the main thread.
+        settings.$config
+            .map(\.startup.launchAtLogin)
+            .removeDuplicates()
+            .sink { wanted in
+                guard let wanted else { return }
+                Task.detached(priority: .utility) {
+                    guard LaunchAtLogin.isAvailable, LaunchAtLogin.isEnabled != wanted else { return }
+                    try? LaunchAtLogin.setEnabled(wanted)
+                }
+            }
+            .store(in: &cancellables)
+
+        settings.$config
+            .map(\.panel.theme)
+            .removeDuplicates()
+            .sink { [weak self] name in self?.loadTheme(name) }
             .store(in: &cancellables)
 
         settings.$config
@@ -354,6 +485,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // While the user is recording a new shortcut, the old one must not fire.
         settings.$isRecordingHotKey
+            // @Published emits before the value is set; registerHotKeys checks it, and would bail.
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] recording in
                 guard let self else { return }
                 if recording {

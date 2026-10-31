@@ -56,8 +56,7 @@ public enum AppIndexer {
                 let identity = bundleIdentifier ?? url.resolvingSymlinksInPath().path
                 guard seen.insert(identity).inserted else { continue }
 
-                var name = fileManager.displayName(atPath: url.path)
-                if name.hasSuffix(".app") { name.removeLast(4) }
+                let name = AppEntry.displayName(of: url)
 
                 let icon = NSWorkspace.shared.icon(forFile: url.path)
                 icon.size = NSSize(width: 32, height: 32)

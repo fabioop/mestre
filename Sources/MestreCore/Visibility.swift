@@ -14,6 +14,11 @@ public struct Visibility {
     public func filter<T>(_ items: [T], names: (T) -> [String]) -> [T] {
         guard enabled else { return [] }
         guard !hidden.isEmpty else { return items }
-        return items.filter { item in !names(item).contains { hidden.contains($0.lowercased()) } }
+        return items.filter { !hides(names($0)) }
+    }
+
+    /// Whether any of an item's names is on the hidden list.
+    public func hides(_ names: [String]) -> Bool {
+        names.contains { hidden.contains($0.lowercased()) }
     }
 }

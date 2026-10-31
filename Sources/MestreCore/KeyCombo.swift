@@ -45,10 +45,37 @@ public struct KeyCombo: Codable, Hashable, Sendable {
         return text + keyLabel
     }
 
+    /// ⌘Space: Spotlight's shortcut, which macOS keeps until it is turned off there.
+    public static let spotlight = KeyCombo(keyCode: UInt32(kVK_Space), modifiers: .command, keyLabel: "Space")
+
+    /// Whether Spotlight still answers to its shortcut, from the `AppleSymbolicHotKeys` value of
+    /// `com.apple.symbolichotkeys`. Hotkey 64 is Spotlight; a Mac that never changed it has no entry.
+    public static func spotlightHasShortcut(symbolicHotKeys: [String: Any]?) -> Bool {
+        (symbolicHotKeys?["64"] as? [String: Any])?["enabled"] as? Bool ?? true
+    }
+
+    /// That value with Spotlight's shortcut switched, keeping whatever key it has. A Mac with no
+    /// entry gets the one macOS assumes: Space (ASCII 32, key 49) with ⌘ (1 << 20).
+    public static func spotlightHotKeys(_ symbolicHotKeys: [String: Any]?, enabled: Bool) -> [String: Any] {
+        var all = symbolicHotKeys ?? [:]
+        var entry = all["64"] as? [String: Any] ?? ["value": ["parameters": [32, 49, 1_048_576], "type": "standard"] as [String: Any]]
+        entry["enabled"] = enabled
+        all["64"] = entry
+        return all
+    }
+
+    /// A recorder with nothing in it yet.
+    public static let unset = KeyCombo(keyCode: 0, modifiers: [], keyLabel: "")
+
     public static let functionKeyCodes: Set<Int> = [
         kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6, kVK_F7, kVK_F8, kVK_F9, kVK_F10,
         kVK_F11, kVK_F12, kVK_F13, kVK_F14, kVK_F15, kVK_F16, kVK_F17, kVK_F18, kVK_F19, kVK_F20,
     ]
+
+    /// A key that types into the search field unless a modifier is held, so it can't be a panel key alone.
+    public static func typesText(keyCode: Int) -> Bool {
+        specialKeyLabels[keyCode] == nil || keyCode == kVK_Space
+    }
 
     private static let specialKeyLabels: [Int: String] = [
         kVK_Space: "Space", kVK_Return: "↩", kVK_Tab: "⇥", kVK_Delete: "⌫", kVK_ForwardDelete: "⌦",
@@ -115,28 +142,55 @@ public extension KeyCombo {
                 keyName = part
             }
         }
+        // "+" is the separator too, so "ctrl+option++" leaves no part for the key itself.
+        if keyName == nil, text == "+" || text.hasSuffix("++") { keyName = "+" }
         guard let keyName else { return nil }
 
         if let named = Self.namedKeys[keyName] {
             self.init(keyCode: UInt32(named.code), modifiers: modifiers, keyLabel: named.label)
         } else if keyName.count == 1, let code = keyCodes[keyName.first!] {
             self.init(keyCode: UInt32(code), modifiers: modifiers, keyLabel: keyName.uppercased())
+        } else if keyName.hasPrefix("key"), let code = UInt32(keyName.dropFirst(3)), code < 128 {
+            self.init(keyCode: code, modifiers: modifiers, keyLabel: "Key \(code)")
         } else {
             return nil
         }
+    }
+
+    /// What a recorder keeps for a key press, or nil when the file couldn't read it back as the
+    /// same key. `characters` should have no modifiers applied, so ⇧1 is "1" and not "!".
+    static func recorded(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String?, keyCodes: [Character: UInt16] = KeyCodeMap.current()) -> KeyCombo? {
+        let combo = KeyCombo(keyCode: UInt32(keyCode), modifiers: modifiers, keyLabel: label(forKeyCode: keyCode, characters: characters))
+        return combo.readsBack(keyCodes: keyCodes) ? combo : nil
+    }
+
+    /// The config stores the spelling, so it must parse back to the same key on this layout.
+    func readsBack(keyCodes: [Character: UInt16] = KeyCodeMap.current()) -> Bool {
+        KeyCombo(parsing: configString, keyCodes: keyCodes)?.keyCode == keyCode
+    }
+
+    /// The same physical key and modifiers, however each was spelled.
+    func isSameKey(as other: KeyCombo) -> Bool {
+        keyCode == other.keyCode && modifierRawValue == other.modifierRawValue
+    }
+
+    /// A key with no character of its own (a dead key) is written by its code: "key30".
+    private var keyName: String {
+        if let name = Self.canonicalNames[Int(keyCode)] { return name }
+        return keyLabel.hasPrefix("Key ") ? "key\(keyCode)" : keyLabel.lowercased()
     }
 
     /// The form written to the config file, e.g. "option+space".
     var configString: String {
         var parts: [String] = []
         if modifiers.isSuperset(of: [.command, .option, .control, .shift]) {
-            return "hyper+" + (Self.canonicalNames[Int(keyCode)] ?? keyLabel.lowercased())
+            return "hyper+" + keyName
         }
         if modifiers.contains(.control) { parts.append("ctrl") }
         if modifiers.contains(.option) { parts.append("option") }
         if modifiers.contains(.shift) { parts.append("shift") }
         if modifiers.contains(.command) { parts.append("cmd") }
-        parts.append(Self.canonicalNames[Int(keyCode)] ?? keyLabel.lowercased())
+        parts.append(keyName)
         return parts.joined(separator: "+")
     }
 }

@@ -25,6 +25,7 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "cornerRadius": 12,
     "queryFontSize": 20,
     "material": "glass",
+    "theme": "mestre",
     "appearance": "system",
     "accentColor": "mestre",
     "subtitles": "selected",
@@ -37,7 +38,10 @@ and reloads it as soon as you save it in an editor. Every key is optional.
   "home": {
     "sections": ["recent", "features", "commands"],
     "recentCount": 5,
-    "hidden": []
+    "hidden": [],
+    "layout": "list",
+    "tiles": ["keepAwake", "clipboard", "sleep"],
+    "tileHeight": 156
   },
   "search": {
     "appDirectories": ["/Applications", "~/Applications"],
@@ -166,9 +170,30 @@ and reloads it as soon as you save it in an editor. Every key is optional.
 }
 ```
 
+The welcome window can give `hotKey` Spotlight's ⌘Space. That also turns off Spotlight's own shortcut
+in macOS, which is the one change Mestre makes outside its files; the same screen gives it back, or
+turn it on again in System Settings › Keyboard › Keyboard Shortcuts › Spotlight. Uninstalling Mestre
+doesn't restore it.
+
+Settings edits this file and nothing else, so copying the `~/.config/mestre` folder to another Mac
+brings everything across except macOS permissions, which that Mac has to grant again. Settings covers
+what most people change. Technical keys live only in the file: wait times and polling intervals,
+`search.scanDepth`, `search.watchFolders`, `search.refreshIntervalSeconds`, `ranking.runningBoost`,
+`ranking.providers`, `ranking.budgetMs`, `quickKeys.keys`, `clipboard.maxTextBytes`,
+`clipboard.pollIntervalSeconds`, `files.debounceSeconds`, `files.minimumLength`,
+`dictionary.debounceSeconds`, `bookmarks.minimumLength`, `bookmarks.penalty`, `paste`,
+`shortcuts.refreshIntervalSeconds`, `windows.listRefreshSeconds`, `emoji.prefix`, script timings and
+`needs`, and `debug`.
+
+Each Settings page has a reset button, and General can reset everything. Resets keep your quicklinks,
+snippets, scripts, aliases and how much clipboard history is kept, and save the previous file as `config.backup.json`, which Undo puts back.
+
+`startup.launchAtLogin` registers Mestre as a login item when the file is read. Left out, it keeps
+whatever macOS has now.
+
 First launch writes a file of notes only, so every key keeps its default until you set it; the
 file is written again only when a setting changes. `Show Default Config` (a command, also
-Settings › General) opens every default with a one-line note per section; the same from a shell:
+All Options in Settings › General) opens every default with a one-line note per section; the same from a shell:
 
 ```bash
 build/Mestre.app/Contents/MacOS/Mestre --show-config --default --docs
@@ -189,7 +214,7 @@ Without `--default` it prints the settings in force.
   `hotKey`, e.g. `"keys": {"moveUp": ["up", "ctrl+k"], "quit": "cmd+w"}`. Names come from one
   action table: the panel's own (`moveUp`, `moveDown`, `open`, `close`, `actions`) and every
   action a provider declares (`quit`, `reveal`, `copyPath`, `quickLook`, `paste`, `delete`…).
-  Settings › Keys lists every action with its title, name, providers and keys, and the ⌘K
+  Settings › Shortcuts lists every action with its title, name and keys, and the ⌘K
   menu shows each action's name next to its key, so what you see is what you bind. Defaults:
   `moveUp` up, ctrl+p · `moveDown` down, ctrl+n · `open` return · `close` escape ·
   `actions` cmd+k · `complete` tab · `moveLeft` left · `moveRight` right (only while chips are open) ·
@@ -240,8 +265,16 @@ Without `--default` it prints the settings in force.
   "alias ff") on the selected row only and shows content (an expression, a keyword, a clipboard
   entry's age) everywhere, so the list reads as one line per item; `always` shows every second
   line. A choice that isn't one of the listed values falls back to the default.
+  `theme` names a theme file: `mestre` (the panel's own look), `ulm`, `putty`, `tiles`,
+  `micro`, or your own (see [Themes](#themes)). While a theme is active its
+  values win over `material`, `accentColor`, `cornerRadius`, `fieldHeight` and `queryFontSize`;
+  what it leaves out keeps your value. `appearance` is `system` (default, follows macOS and switches
+  with it), `light` or `dark`, and also picks which palette a theme draws.
 - `home`: what an empty query shows. `sections` in order from `recent`, `features`, `commands`;
-  `recentCount` apps; `hidden` feature or command ids.
+  `recentCount` apps; `hidden` feature or command ids. `layout` is `list` or `tiles`, a dashboard of
+  the clock and date (as of when the panel opened), power, up to four recent apps and up to three
+  feature or command ids from `tiles`, first one widest; `tileHeight` is one row of tiles, at least 124. Below a `panel.width` of 480 the list stands in. Arrow
+  keys and ⇥ move between tiles, Return opens one and ⌘K shows its actions. It works with any theme and starts no timer.
 - `ranking.usageWeight`: how much launch history (frequency × recency) lifts an app; 0 ranks by
   name match only. `showRecents` lists recently launched apps while the search box is empty.
   `providers` is an advanced setting that weighs one provider against the others when results
@@ -266,7 +299,7 @@ Without `--default` it prints the settings in force.
 - `keepAwake`: `enabled`, `keyword`, `allowDisplaySleep` (sessions then prevent only system
   sleep), `durationsMinutes` (the timed rows), `whileRunningApps` (names or bundle ids that keep
   the Mac awake while running), `whileCharging`, `endWhenBatteryBelow` (percent, 0 = never),
-  `menuBarIcon`. A session you start outranks the triggers; after it ends a trigger that still
+  `menuBarIcon` (a dot appears beside the M in the menu bar while active). A session you start outranks the triggers; after it ends a trigger that still
   holds takes over. Keeping awake with the lid closed needs `pmset` changes and is not done.
 - `processes`: `enabled` and the trigger `keyword` (one word, default `kill`). While the
   query starts with the keyword only processes are listed: those you can signal, biggest
@@ -324,3 +357,55 @@ Without `--default` it prints the settings in force.
   digits is a thousands separator; otherwise it is a decimal point (`3,5*2` = 7).
 - `includeSystemApps`: off by default so results show the apps you installed, not
   everything under /System/Applications. Turn it on to search Apple's apps too.
+
+## Themes
+
+A theme is one JSON file: the same panel for every theme, with only colours, type, corners and a few
+sizes changing. It cannot add information, run code or start a timer. The built-ins are in
+`Sources/MestreCore/Resources/theme-*.json`. Settings › Appearance › Customise This Theme copies the
+current theme to your themes folder and opens the copy, which you can then edit. To add your own, or
+replace a built-in, save `~/.config/mestre/themes/<name>.json`; it appears with the others in
+Settings, or set `panel.theme` to `<name>`. It applies when you save.
+
+Every key is optional. Sizes are in points; colours are anything `panel.accentColor` takes.
+
+```json
+{
+  "material": "none",
+  "cornerRadius": 26, "rowRadius": 10, "iconRadius": 14, "tileRadius": 16,
+  "borderWidth": 1.5, "fieldHeight": 56, "queryFontSize": 22,
+  "labelCase": "lower",
+  "fonts": { "ui": "system", "query": "monospaced", "queryWeight": "light" },
+  "light": {
+    "panel": "#e9e8e3", "border": "#00000020", "ink": "#2a2a28", "inkSecondary": "#62615a", "divider": "#00000014",
+    "accent": "#e2531a", "running": "#c9440f",
+    "selection": "#f8f7f3", "selectionInk": "#2a2a28", "selectionSecondary": "#62615a",
+    "iconTile": "#dcdbd4", "iconSymbol": "#3f3e39", "selectedIconTile": "#232422", "selectedIconSymbol": "#f1f2ea",
+    "keyCap": "#f8f7f3", "keyCapInk": "#2a2a28", "keyCapEdge": "#00000026", "selectedKeyInk": "#1b1920", "primaryKey": "#e2531a", "primaryKeyInk": "#ffffff",
+    "field": "#232422", "fieldInk": "#f1f2ea", "fieldSecondary": "#a3a697", "caret": "#e2531a",
+    "footer": "#262725", "footerInk": "#f0efe9", "footerSecondary": "#c9c8c1",
+    "kinds": { "app": "#b3afef", "file": "#5fd36a" },
+    "tiles": ["#1c1c1e", "#ffd60a", "#2f6fe8"]
+  },
+  "dark": { "panel": "#232422", "ink": "#efeee8", "inkSecondary": "#a9a89f" }
+}
+```
+
+- `light` and `dark` are the theme's palettes, one drawn according to `panel.appearance`. Each takes
+  the same keys and neither inherits from the other. With only one of them the theme stays in that
+  mode. A file can instead have a single `colors` palette, plus `"appearance": "light"` or `"dark"`
+  to say which mode it is.
+- `fonts.ui` and `fonts.query` are `system`, `rounded`, `monospaced`, `serif` or an installed family
+  name; a family that isn't installed falls back to `system`. `queryWeight` is `light`, `regular`,
+  `medium`, `semibold`, `bold` or `heavy`.
+- `labelCase` (`upper`, `lower`, `none`) applies to section headers and kind labels.
+- `field` and `footer` turn the search field and the footer into filled bars inset in the panel, with
+  corners that follow `cornerRadius`.
+- `selectedKeyInk` is the ink and edge of a key cap on the selected row, for caps with no fill.
+- `kinds` colours section headers and symbols by item kind (`app`, `file`, `command`, `feature`…).
+- `tiles` are the fills the tile home screen cycles through, with black or white text, whichever
+  reads.
+- A painted `panel` turns the blur off unless `material` says otherwise. A colour that doesn't parse
+  keeps the default look for that key; a file that doesn't parse uses the default look, and
+  Settings › Appearance says why.
+

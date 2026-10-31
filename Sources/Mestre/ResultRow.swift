@@ -14,6 +14,7 @@ struct ResultRow: View {
     let useGlass: Bool
     /// Draw a metadata second line even though the row isn't selected (`panel.subtitles: always`).
     var showMetadata = true
+    @Environment(\.panelStyle) private var style
 
     var body: some View {
         HStack(spacing: 10) {
@@ -26,8 +27,8 @@ struct ResultRow: View {
                     titleLine.fixedSize()
                     if let subtitle = secondLine {
                         Text(subtitle)
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
+                            .font(style.font(13))
+                            .foregroundStyle(isSelected ? style.selectionSecondary : style.inkSecondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
                             .frame(minWidth: Self.minSubtitleWidth, alignment: .leading)
@@ -37,15 +38,16 @@ struct ResultRow: View {
             }
             Spacer(minLength: 12)
             if let quickKey {
-                KeyHint(quickKey)
+                KeyHint(quickKey, onSelection: isSelected)
             }
             Text(item.kind.label)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                .font(style.font(12))
+                .textCase(style.kindCase)
+                .foregroundStyle(isSelected ? style.selectionSecondary : style.inkSecondary)
         }
         .padding(.horizontal, 10)
         .frame(height: height)
-        .background(SelectionBackground(isSelected: isSelected, accent: accent, useGlass: useGlass, cornerRadius: 8))
+        .background(SelectionBackground(isSelected: isSelected, accent: accent, useGlass: useGlass, cornerRadius: style.rowRadius))
         .contentShape(Rectangle())
     }
 
@@ -55,18 +57,19 @@ struct ResultRow: View {
     private var titleLine: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(item.title)
-                .font(.system(size: 14, weight: .medium))
+                .font(style.font(14, .medium))
+                .foregroundStyle(isSelected ? style.selectionInk : style.ink)
                 .lineLimit(1)
                 .truncationMode(.tail)
             if let alias {
                 Text("(\(alias))")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
+                    .font(style.font(13))
+                    .foregroundStyle(isSelected ? style.selectionSecondary : style.inkSecondary)
                     .fixedSize()
             }
             if item.isActive {
                 Circle()
-                    .fill(Color.green)
+                    .fill(style.running)
                     .frame(width: 6, height: 6)
                     .help("Running")
             }
@@ -84,12 +87,13 @@ struct ResultRow: View {
         if let icon = item.icon {
             Image(nsImage: icon).resizable()
         } else {
-            RoundedRectangle(cornerRadius: iconSize * 0.25, style: .continuous)
-                .fill(isSelected ? accent.opacity(0.18) : Color.primary.opacity(0.07))
+            let hue = style.kinds[item.kind.rawValue]
+            RoundedRectangle(cornerRadius: style.iconRadius ?? iconSize * 0.25, style: .continuous)
+                .fill(isSelected ? style.selectedIconTile ?? accent.opacity(0.18) : hue?.opacity(0.18) ?? style.quietFill)
                 .overlay {
                     Image(systemName: item.iconSymbol ?? "circle.dashed")
-                        .font(.system(size: iconSize * 0.5, weight: .medium))
-                        .foregroundStyle(isSelected ? AnyShapeStyle(accent) : AnyShapeStyle(.secondary))
+                        .font(style.font(iconSize * 0.5, .medium))
+                        .foregroundStyle(isSelected ? AnyShapeStyle(style.selectedIconSymbol ?? accent) : (hue ?? style.iconSymbol).map { AnyShapeStyle($0) } ?? style.inkSecondary)
                 }
         }
     }

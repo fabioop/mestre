@@ -29,8 +29,10 @@ Press **⌥ Space** and type.
 | Kill a process | `kill chrome` |
 | Apple Shortcuts | a shortcut's name |
 | Your own scripts | a keyword you choose |
+| Themes | `panel.theme`, or Settings › Appearance |
+| Tile home screen | `home.layout`, or Settings › Appearance |
 
-You can also import snippets, quicklinks and hotkeys from Raycast or Alfred under Settings › Import.
+You can also import snippets, quicklinks and hotkeys from Raycast or Alfred under Settings › General.
 
 ## Keys
 

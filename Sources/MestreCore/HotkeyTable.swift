@@ -48,6 +48,11 @@ public struct HotkeyTable: Equatable, Sendable {
         }
     }
 
+    /// What answers to this key once user entries, defaults and disabled keys are settled.
+    public func owner(of combo: KeyCombo) -> String? {
+        entries.first { $0.combo.isSameKey(as: combo) }?.target
+    }
+
     /// Entries whose target is a window layout.
     public var windowEntries: [Entry] { entries.filter { $0.target.hasPrefix(Self.windowPrefix) } }
 

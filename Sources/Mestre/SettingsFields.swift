@@ -15,10 +15,10 @@ struct CommittedField<Value: Equatable>: View {
     var placeholder = ""
     var width: CGFloat? = nil
     var multiline = false
-    var trailing = false
-    var suffix: String? = nil
 
     @State private var text = ""
+    /// The text as last taken from or given to the value; anything else was typed.
+    @State private var synced = ""
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -29,10 +29,12 @@ struct CommittedField<Value: Equatable>: View {
                 control
             }
         }
-        .onAppear { text = render(value) }
-        .onDisappear(perform: commit)
+        .onAppear { sync(to: value) }
+        // Only what was typed: the change that removes a field never reaches onChange below, so
+        // its text can be out of date and would overwrite the new value.
+        .onDisappear { if text != synced { commit() } }
         .onChange(of: focused) { _, isFocused in if !isFocused { commit() } }
-        .onChange(of: value) { _, new in if parse(text) != new { text = render(new) } }
+        .onChange(of: value) { _, new in if parse(text) != new { sync(to: new) } }
     }
 
     @ViewBuilder private var control: some View {
@@ -45,120 +47,30 @@ struct CommittedField<Value: Equatable>: View {
                 }
                 .focused($focused)
         } else {
-            HStack(spacing: 4) {
-                TextField(placeholder, text: $text)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .multilineTextAlignment(trailing ? .trailing : .leading)
-                    .frame(width: width)
-                    .focused($focused)
-                    .onSubmit(commit)
-                if let suffix { Text(suffix).foregroundStyle(.secondary) }
-            }
+            // A form would draw the title as a second label beside the field.
+            TextField("", text: $text, prompt: Text(placeholder))
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .frame(width: width)
+                .focused($focused)
+                .onSubmit(commit)
+                .accessibilityLabel(label ?? placeholder)
         }
     }
 
     private func commit() {
         if let parsed = parse(text) {
             if parsed != value { value = parsed }
-            text = render(parsed)
+            sync(to: parsed)
         } else {
-            text = render(value)
+            sync(to: value)
         }
     }
-}
 
-/// Integer or floating-point value, clamped to `min`…`max`; non-finite input reverts.
-struct NumberField<Value: Numeric & LosslessStringConvertible & Comparable>: View {
-    let label: String
-    @Binding var value: Value
-    var suffix: String? = nil
-    var min: Value? = nil
-    var max: Value? = nil
-
-    var body: some View {
-        CommittedField(label: label, value: $value, render: { String($0) }, parse: parse, width: 80, trailing: true, suffix: suffix)
-    }
-
-    private func parse(_ text: String) -> Value? {
-        guard var number = Value(text.trimmingCharacters(in: .whitespaces)) else { return nil }
-        if let double = number as? Double, !double.isFinite { return nil }
-        if let min { number = Swift.max(min, number) }
-        if let max { number = Swift.min(max, number) }
-        return number
-    }
-}
-
-/// Single line of text.
-struct StringField: View {
-    let label: String
-    @Binding var value: String
-    var placeholder = ""
-
-    var body: some View {
-        CommittedField(label: label, value: $value, render: { $0 }, parse: { $0 }, placeholder: placeholder, width: 220)
-    }
-}
-
-/// A list of strings, one per line; blank lines are dropped.
-struct StringListField: View {
-    let label: String
-    @Binding var values: [String]
-    var placeholder = ""
-
-    var body: some View {
-        CommittedField(label: label, value: $values, render: { $0.joined(separator: "\n") }, parse: Self.parse, placeholder: placeholder, multiline: true)
-    }
-
-    static func parse(_ text: String) -> [String] {
-        text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-    }
-}
-
-/// `[String: String]` as `key = value` lines. The separator is the first " = " (so a key may
-/// contain "=", as in "hyper+="), falling back to the first "=".
-struct StringMapField: View {
-    let label: String
-    @Binding var values: [String: String]
-    var placeholder = "key = value"
-
-    var body: some View {
-        CommittedField(label: label, value: $values, render: Self.render, parse: Self.parse, placeholder: placeholder, multiline: true)
-    }
-
-    static func render(_ map: [String: String]) -> String {
-        map.sorted(by: { $0.key < $1.key }).map { "\($0.key) = \($0.value)" }.joined(separator: "\n")
-    }
-
-    static func parse(_ text: String) -> [String: String] {
-        var map: [String: String] = [:]
-        for line in text.split(whereSeparator: \.isNewline) {
-            let split = line.range(of: " = ").map { ($0.lowerBound, $0.upperBound) }
-                ?? line.firstIndex(of: "=").map { ($0, line.index(after: $0)) }
-            guard let (keyEnd, valueStart) = split else { continue }
-            let key = line[..<keyEnd].trimmingCharacters(in: .whitespaces)
-            if !key.isEmpty { map[key] = line[valueStart...].trimmingCharacters(in: .whitespaces) }
-        }
-        return map
-    }
-}
-
-/// Slider that writes to the config when the knob is released, not on every tick.
-struct CommittedSlider: View {
-    let label: String
-    @Binding var value: Double
-    let range: ClosedRange<Double>
-    let step: Double
-
-    @State private var local = 0.0
-
-    var body: some View {
-        LabeledContent(label) {
-            Slider(value: $local, in: range, step: step) { editing in if !editing { value = local } }
-                .frame(width: 170)
-        }
-        .onAppear { local = value }
-        .onChange(of: value) { _, new in local = new }
+    private func sync(to value: Value) {
+        text = render(value)
+        synced = text
     }
 }
 
@@ -176,13 +88,7 @@ struct ItemListEditor<Item: Identifiable & Equatable, Row: View>: View where Ite
             ForEach(items.indices, id: \.self) { index in
                 HStack(alignment: .top, spacing: 6) {
                     row(binding(at: index)) { name in nameTaken(name, except: index) }
-                    Button {
-                        items.remove(at: index)
-                    } label: {
-                        Image(systemName: "minus.circle").foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Remove")
+                    RemoveButton { items.remove(at: index) }
                 }
             }
             Button(addTitle) { items.append(template(uniqueName())) }

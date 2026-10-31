@@ -18,6 +18,7 @@ Name: Mestre (Portuguese for "master"). Bundle id `app.mestre.Mestre`, config at
 
 ## Conventions
 
+- Commits follow Conventional Commits: `type(scope): summary`, for example `fix(panel): keep the glass view attached` or `feat(themes): add the micro theme`.
 - Global hotkey uses Carbon `RegisterEventHotKey` (no Accessibility permission needed). Default ⌥Space.
 - The search panel is a non-activating `NSPanel`; keyboard navigation goes through the `NSTextField` delegate's `doCommandBy:` (moveUp:/moveDown:/insertNewline:/cancelOperation:), not event monitors.
 - All user settings go through `Config` (MestreCore) and `ConfigStore` (app): JSON at `~/.config/mestre/config.json`, every key optional with a default, file watched for live reload. Never add a setting to UserDefaults; usage stats are the one exception (data, not config).

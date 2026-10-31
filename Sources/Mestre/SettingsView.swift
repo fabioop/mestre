@@ -1,327 +1,635 @@
+import AppKit
 import MestreCore
 import SwiftUI
 
-/// Edits the config file: one page per section, every key. Each page is its own view so
-/// the body stays small enough for the type checker and re-renders stay cheap.
+/// Edits the config file, the thing that moves between Macs. Five pages and a search box;
+/// each page is its own view so re-renders stay cheap. Timings and other technical keys stay
+/// file-only: `SettingsCatalog` lists what is here.
 struct SettingsView: View {
     // Not observed: only the visible page reads the store, so only it re-renders on edits.
     let settings: ConfigStore
     let viewModel: SearchViewModel
     let expander: TextExpander
 
-    enum Page: String, CaseIterable, Identifiable {
-        case general, panel, apps, hotkeys, keys, quicklinks, scripts, importData
-        case calculator, commands, settingsPanes, processes, keepAwake, shortcuts, web, windows
-        case clipboard, snippets, emoji, files, paths, dictionary, bookmarks, colors
-
-        var id: Page { self }
-        var title: String { Self.info[self]!.title }
-        var symbol: String { Self.info[self]!.symbol }
-
-        private static let info: [Page: (title: String, symbol: String)] = [
-            .general: ("General", "gearshape"), .panel: ("Panel", "rectangle.topthird.inset.filled"),
-            .apps: ("Apps & Ranking", "square.grid.2x2"), .hotkeys: ("Hotkeys", "keyboard"),
-            .keys: ("Keys", "arrow.up.arrow.down"), .quicklinks: ("Quicklinks", "link"),
-            .scripts: ("Scripts", "terminal"), .importData: ("Import", "square.and.arrow.down"),
-            .calculator: ("Calculator", "plus.forwardslash.minus"), .commands: ("Commands", "terminal"),
-            .settingsPanes: ("System Settings", "slider.horizontal.3"), .processes: ("Processes", "xmark.octagon"),
-            .keepAwake: ("Keep Awake", "cup.and.saucer"),
-            .shortcuts: ("Shortcuts", "square.2.layers.3d"), .web: ("Web", "globe"),
-            .windows: ("Windows", "macwindow.on.rectangle"), .clipboard: ("Clipboard", "doc.on.clipboard"),
-            .snippets: ("Snippets", "text.quote"), .emoji: ("Emoji", "face.smiling"),
-            .files: ("Files", "doc.text.magnifyingglass"), .paths: ("Folders", "folder"),
-            .dictionary: ("Dictionary", "character.book.closed"), .bookmarks: ("Bookmarks", "bookmark"),
-            .colors: ("Colours", "paintpalette"),
-        ]
-        static let launcher: [Page] = [.general, .panel, .apps, .hotkeys, .keys, .quicklinks, .importData]
-        static let features: [Page] = allCases.filter { !launcher.contains($0) }
-    }
-
-    @State private var page: Page = .general
+    @State private var page: SettingsPage = .general
+    @State private var query = ""
+    @State private var openFeature: SettingsFeature?
+    @State private var librarySection: SettingsLibrary = .quicklinks
+    @State private var highlight: String?
+    @State private var jump: String?
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $page) {
-                Section("Launcher") { ForEach(Page.launcher) { Label($0.title, systemImage: $0.symbol).tag($0) } }
-                Section("Features") { ForEach(Page.features) { Label($0.title, systemImage: $0.symbol).tag($0) } }
-            }
-            .navigationSplitViewColumnWidth(190)
+            sidebar
+                .searchable(text: $query, placement: .sidebar, prompt: "Search settings")
+                .onSubmit(of: .search) {
+                    if let first = SettingsCatalog.search(query).first { go(to: first) }
+                }
+                .toolbar(removing: .sidebarToggle)
+                .navigationSplitViewColumnWidth(210)
         } detail: {
-            Form { detail }
-                .formStyle(.grouped)
-                .navigationTitle(page.title)
+            ScrollViewReader { proxy in
+                Form { detail }
+                    .formStyle(.grouped)
+                    .navigationTitle(page.title)
+                    .environment(\.settingHighlight, highlight)
+                    .onChange(of: jump) { _, id in
+                        guard let id else { return }
+                        // After the page or the feature has laid out its rows.
+                        DispatchQueue.main.async {
+                            withAnimation { proxy.scrollTo(id, anchor: .center) }
+                            jump = nil
+                        }
+                    }
+            }
         }
-        .frame(minWidth: 760, minHeight: 540)
+    }
+
+    @ViewBuilder private var sidebar: some View {
+        if query.isEmpty {
+            List(selection: $page) {
+                ForEach(SettingsPage.allCases, id: \.self) { Label($0.title, systemImage: $0.symbol).tag($0) }
+            }
+        } else {
+            let results = SettingsCatalog.search(query)
+            List(results) { entry in
+                Button { go(to: entry) } label: {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(entry.title)
+                        // Why the control isn't on screen, in place of where it lives.
+                        Text(entry.unavailableReason(in: settings.config, decided: settings.themeOverrides) ?? entry.path).font(.caption).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .overlay {
+                if results.isEmpty {
+                    Text("No settings match “\(query)”").font(.callout).foregroundStyle(.secondary).padding()
+                }
+            }
+        }
     }
 
     @ViewBuilder private var detail: some View {
         switch page {
-        case .general: GeneralPage(settings: settings)
-        case .panel: PanelPage(settings: settings, viewModel: viewModel)
-        case .apps: AppsPage(settings: settings, viewModel: viewModel)
-        case .hotkeys: HotkeysPage(settings: settings, viewModel: viewModel)
-        case .keys: KeysPage(settings: settings)
-        case .quicklinks: QuicklinksPage(settings: settings)
-        case .scripts: ScriptsPage(settings: settings)
-        case .importData: ImportPage(settings: settings)
-        case .calculator: CalculatorPage(settings: settings)
-        case .commands: CommandsPage(settings: settings)
-        case .settingsPanes: SettingsPanesPage(settings: settings)
-        case .processes: ProcessesPage(settings: settings)
-        case .keepAwake: KeepAwakePage(settings: settings, manager: viewModel.keepAwake.manager)
-        case .shortcuts: ShortcutsPage(settings: settings)
-        case .web: WebPage(settings: settings)
-        case .windows: WindowsPage(settings: settings)
-        case .clipboard: ClipboardPage(settings: settings, viewModel: viewModel)
-        case .snippets: SnippetsPage(settings: settings, expander: expander)
-        case .emoji: EmojiPage(settings: settings)
-        case .files: FilesPage(settings: settings)
-        case .paths: PathsPage(settings: settings)
-        case .dictionary: DictionaryPage(settings: settings)
-        case .bookmarks: BookmarksPage(settings: settings)
-        case .colors: ColorsPage(settings: settings)
+        case .general: GeneralPage(settings: settings, viewModel: viewModel)
+        case .appearance: AppearancePage(settings: settings, viewModel: viewModel)
+        case .features: FeaturesPage(settings: settings, viewModel: viewModel, expander: expander, open: $openFeature)
+        case .shortcuts: ShortcutsSettingsPage(settings: settings, viewModel: viewModel)
+        case .library: LibraryPage(settings: settings, viewModel: viewModel, section: $librarySection)
+        }
+    }
+
+    private func go(to entry: SettingEntry) {
+        page = entry.page
+        if let feature = entry.feature { openFeature = feature }
+        if let library = entry.library { librarySection = library }
+        highlight = entry.id
+        jump = entry.id
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            if highlight == entry.id { highlight = nil }
         }
     }
 }
 
-// MARK: - Launcher pages
+// MARK: - General
 
 private struct GeneralPage: View {
     @ObservedObject var settings: ConfigStore
+    let viewModel: SearchViewModel
 
     var body: some View {
         Section("Shortcut") {
             LabeledContent("Open Mestre") {
                 HotKeyRecorder(combo: $settings.config.hotKey, isRecording: $settings.isRecordingHotKey)
-                    .frame(width: 170, height: 26)
+                    .sized(width: 170, height: 26)
             }
-            if let error = settings.hotKeyError {
-                ErrorCaption(error)
-            }
-            Caption("⌘Space belongs to Spotlight until you turn its shortcut off in System Settings › Keyboard › Keyboard Shortcuts › Spotlight.")
+            .setting("hotKey")
+            if let error = settings.hotKeyError { ErrorCaption(error) }
+            Caption("To use ⌘Space, first turn off Spotlight's shortcut in System Settings › Keyboard › Keyboard Shortcuts.")
         }
         Section("Startup") {
-            LaunchAtLoginToggle()
-            Toggle("Show the welcome window at launch", isOn: $settings.config.onboarding.showWelcome)
-            Caption("Turned off by itself once the welcome window has been closed.")
+            LaunchAtLoginToggle(settings: settings).setting("launchAtLogin")
+            Toggle("Show the welcome window at launch", isOn: $settings.config.onboarding.showWelcome).setting("welcome")
         }
-        Section("Config file") {
-            LabeledContent(settings.displayPath) {
-                Button("Edit…") { settings.openInEditor() }
-                Button("Show defaults…") { ConfigStore.showDefaults() }
+        Section("Apps") {
+            Toggle("Include Apple's built-in apps", isOn: $settings.config.search.includeSystemApps).setting("apps.system")
+            FolderListField(label: "App folders", values: $settings.config.search.appDirectories).setting("apps.folders")
+            ValueSlider(label: "Usage influence", value: $settings.config.ranking.usageWeight, range: 0...2, step: 0.25) { $0 == 0 ? "Off" : $0.formatted(.number.precision(.fractionLength(0...2))) + "×" }
+                .setting("apps.usage")
+            Toggle("Show recent apps when the search is empty", isOn: $settings.config.ranking.showRecents).setting("apps.recents")
+            if !viewModel.slowProviders.isEmpty {
+                let slow = viewModel.slowProviders.sorted { $0.key < $1.key }.map { "\($0.key) \(String(format: "%.1f", $0.value)) ms" }
+                Caption("Over budget since launch: \(slow.joined(separator: ", ")).")
             }
-            .font(.system(.body, design: .monospaced))
+        }
+        Section("Your settings file") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(settings.displayPath).textSelection(.enabled)
+                HStack {
+                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([settings.fileURL]) }
+                    Button("Edit…") { settings.openInEditor() }
+                    Button("All Options…") { ConfigStore.showDefaults() }
+                }
+            }
+            .setting("configFile")
             if let error = settings.loadError {
                 ErrorCaption("Couldn't read the file, keeping the last good settings and not saving until it parses: \(error)")
             } else {
-                Caption("Every setting here is a key in this file; a missing key keeps its default. Edits made in an editor apply as soon as the file is saved. Show defaults opens every default with its note.")
+                Caption("Everything here is saved in this file. To move to another Mac, copy the mestre folder (it holds your custom themes too), then grant Accessibility and Input Monitoring again there. All Options lists the technical settings that only live in the file.")
             }
         }
-        Section("Debug") {
-            Toggle("Log hot-path timings", isOn: $settings.config.debug.logTimings)
-            Caption("Panel show, search and index scan durations go to the unified log (subsystem app.mestre, category perf).")
-        }
+        ImportPage(settings: settings).setting("import")
+        ResetSection(settings: settings, page: .general)
+        ResetSection(settings: settings, page: nil).setting("reset")
     }
 }
 
-private struct PanelPage: View {
+/// A page's reset, or with no page the whole file. Asks first, keeps a backup, offers Undo.
+struct ResetSection: View {
     @ObservedObject var settings: ConfigStore
-    /// Feature ids for the caption, read once when the page is built.
-    let featureIDs: String
+    let page: SettingsPage?
 
-    init(settings: ConfigStore, viewModel: SearchViewModel) {
-        self.settings = settings
-        featureIDs = viewModel.providers.compactMap { $0.homeFeature()?.id }.joined(separator: ", ")
+    @State private var isAsking = false
+    @State private var nothingToReset = false
+    @State private var error: String?
+
+    private var title: String { page.map { "Reset \($0.title)" } ?? "Reset All Settings" }
+    private var id: String { page?.rawValue ?? "all" }
+    /// One backup, so one Undo: on the section that made it, until anything else changes.
+    private var canUndo: Bool { settings.resetUndo?.id == id }
+
+    private var message: String {
+        let keeps = "Your quicklinks, snippets, scripts, aliases and clipboard history stay."
+        switch page {
+        case nil: return "Every setting goes back to its default, including the technical ones in the file. \(keeps)"
+        case .features: return "Every feature goes back to on, with its default options, including the technical ones in the file. Your snippets and clipboard history stay."
+        case .shortcuts: return "Your global shortcuts are removed, and window layouts and panel keys go back to their defaults."
+        default: return "The settings on this page go back to their defaults."
+        }
     }
 
     var body: some View {
-        Section("Size") {
-            NumberField(label: "Width", value: $settings.config.panel.width, suffix: "pt", min: 200)
-            NumberField(label: "Search field height", value: $settings.config.panel.fieldHeight, suffix: "pt", min: 30)
-            NumberField(label: "Row height", value: $settings.config.panel.rowHeight, suffix: "pt", min: 20)
-            NumberField(label: "Icon size", value: $settings.config.panel.iconSize, suffix: "pt", min: 12)
-            NumberField(label: "Rows before scrolling", value: $settings.config.panel.maxVisibleRows, min: 1)
-            NumberField(label: "Results per search", value: $settings.config.search.maxResults, min: 1)
+        Section {
+            HStack {
+                Button(title) { isAsking = true }
+                if canUndo {
+                    Button("Undo", action: undo)
+                }
+            }
+            if let error { ErrorCaption(error) }
+            Caption(canUndo ? "Done. The previous settings are saved as config.backup.json." : nothingToReset ? "These are already the defaults." : message)
         }
-        Section("Look") {
-            CommittedSlider(label: "Position from top", value: $settings.config.panel.verticalPosition, range: 0...0.9, step: 0.01)
-            Caption("Fraction of the screen height above the panel: 0 is the top edge.")
-            NumberField(label: "Corner radius", value: $settings.config.panel.cornerRadius, suffix: "pt", min: 0)
-            NumberField(label: "Query font size", value: $settings.config.panel.queryFontSize, suffix: "pt", min: 8)
-            Picker("Material", selection: $settings.config.panel.material) {
-                ForEach(Config.Panel.Material.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            Caption("glass is Liquid Glass (macOS 26; earlier systems use popover). The others are the classic blurs; \"none\" is opaque.")
-            Picker("Second lines", selection: $settings.config.panel.subtitles) {
-                ForEach(Config.Panel.Subtitles.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            Caption("selected: a folder, \"Browser\" or a URL shows only on the selected row; an expression, a keyword or an age always shows. always: every row shows its second line.")
-            Toggle("Footer with key hints", isOn: $settings.config.panel.showFooter)
-            NumberField(label: "Confirmation shows for", value: $settings.config.panel.toastSeconds, suffix: "s", min: 0)
-            Caption("\"Path copied\" and the like, in the footer. 0 turns them off.")
-            Toggle("Compact: no home screen until you type", isOn: $settings.config.panel.compact)
-            Picker("Choosing a feature", selection: $settings.config.panel.completion) {
-                ForEach(Config.Panel.Completion.allCases, id: \.self) { Text($0 == .scope ? "becomes a chip (scope)" : "types its keyword").tag($0) }
-            }
-            Caption("With a chip, what you type is the feature's query; ⌫ on an empty field leaves it. ⇥ on any other row unfolds its actions as chips.")
-            Toggle("Show half of the next row when the list overflows", isOn: $settings.config.panel.peekNextRow)
+        .alert("\(title)?", isPresented: $isAsking) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive, action: reset)
+        } message: {
+            Text(message + " A copy of your settings file is saved first.")
         }
-        Section("Home screen") {
-            StringListField(label: "Sections, in order", values: sections, placeholder: "recent")
-            Caption("recent (apps you launched), features (every feature's entry point), commands. Leave one out to hide it.")
-            NumberField(label: "Recent apps shown", value: $settings.config.home.recentCount, min: 0)
-            StringListField(label: "Hidden rows", values: $settings.config.home.hidden, placeholder: "dictionary")
-            Caption("Feature ids: \(featureIDs). Command ids are listed under Commands.")
+    }
+
+    private func reset() {
+        Task {
+            do {
+                let changed = try await settings.reset(id: id) { config in page.map(config.resetting) ?? config.resettingAll() }
+                error = nil
+                nothingToReset = !changed
+            } catch {
+                self.error = "Nothing was reset, because the backup couldn't be saved: \(error.localizedDescription)"
+            }
         }
-        Section("Theme") {
-            Picker("Appearance", selection: $settings.config.panel.appearance) {
-                ForEach(Config.Panel.Appearance.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+    }
+
+    private func undo() {
+        Task {
+            do {
+                try await settings.undoReset()
+                error = nil
+            } catch {
+                self.error = "Couldn't restore the backup: \(error.localizedDescription)"
             }
-            StringField(label: "Accent colour", value: $settings.config.panel.accentColor, placeholder: "mestre")
-            if settings.config.panel.accentChoice == nil {
-                ErrorCaption("Not a colour; using the system accent.")
-            }
-            Caption("mestre is the brand violet; system follows the system accent; or a hex (#ff8800) / CSS name. Highlights the selected row.")
         }
     }
 }
 
-private extension PanelPage {
-    /// `home.sections` as names, the way the file spells them.
-    var sections: Binding<[String]> {
+// MARK: - Appearance
+
+private struct AppearancePage: View {
+    @ObservedObject var settings: ConfigStore
+    let viewModel: SearchViewModel
+
+    /// What the active theme decides. The rest still comes from the file, so keeps its control.
+    private var decided: Theme.Overrides { settings.themeOverrides }
+
+    var body: some View {
+        Section("Theme") {
+            ThemePicker(selection: $settings.config.panel.theme, folder: ThemeLibrary.userDirectory(configFile: settings.fileURL), appearance: settings.config.panel.appearance, revision: settings.themeFilesRevision)
+                .setting("theme")
+            if let error = settings.themeError { ErrorCaption(error) }
+            ThemeFileButtons(settings: settings).setting("theme.custom")
+            Picker("Light or dark", selection: $settings.config.panel.appearance) {
+                Text("Match macOS").tag(Config.Panel.Appearance.system)
+                Text("Always light").tag(Config.Panel.Appearance.light)
+                Text("Always dark").tag(Config.Panel.Appearance.dark)
+            }
+            .pickerStyle(.segmented)
+            .setting("appearance")
+            if !decided.accent {
+                AccentPicker(value: $settings.config.panel.accentColor).setting("accent")
+            }
+            if !decided.material {
+                Picker("Background", selection: $settings.config.panel.material) {
+                    ForEach(Config.Panel.Material.allCases, id: \.self) { Text(Self.title(of: $0)).tag($0) }
+                }
+                .setting("material")
+            }
+            if !decided.cornerRadius {
+                ValueSlider(label: "Corner radius", points: $settings.config.panel.cornerRadius, range: 0...32).setting("cornerRadius")
+            }
+            if !decided.fieldHeight {
+                ValueSlider(label: "Search field height", points: $settings.config.panel.fieldHeight, range: 36...90).setting("fieldHeight")
+            }
+            if !decided.queryFontSize {
+                ValueSlider(label: "Search text size", points: $settings.config.panel.queryFontSize, range: 13...36).setting("queryFont")
+            }
+        }
+        Section("Panel") {
+            ValueSlider(label: "Width", points: $settings.config.panel.width, range: 480...1200, step: 10).setting("width")
+            ValueSlider(label: "Row height", points: $settings.config.panel.rowHeight, range: 28...64).setting("rowHeight")
+            ValueSlider(label: "Icon size", points: $settings.config.panel.iconSize, range: 16...44).setting("iconSize")
+            IntStepper(label: "Rows before scrolling", value: $settings.config.panel.maxVisibleRows, range: 1...20).setting("rows")
+            IntStepper(label: "Results per search", value: $settings.config.search.maxResults, range: 1...50).setting("results")
+            ValueSlider(label: "Position on screen", value: $settings.config.panel.verticalPosition, range: 0...0.9, step: 0.01) { "\(Int(($0 * 100).rounded()))%" }
+                .setting("position")
+        }
+        Section("Behaviour") {
+            Picker("Second lines", selection: $settings.config.panel.subtitles) {
+                Text("Selected row only").tag(Config.Panel.Subtitles.selected)
+                Text("Every row").tag(Config.Panel.Subtitles.always)
+            }
+            .setting("subtitles")
+            Toggle("Footer with key hints", isOn: $settings.config.panel.showFooter).setting("footer")
+            PresetPicker(label: "Confirmation message", value: $settings.config.panel.toastSeconds,
+                         options: [(0, "Off"), (1, "1 second"), (1.5, "1.5 seconds"), (3, "3 seconds")]) { "\($0) seconds" }
+                .setting("toast")
+            Toggle("Compact: nothing below the search until you type", isOn: $settings.config.panel.compact).setting("compact")
+            Picker("Choosing a feature", selection: $settings.config.panel.completion) {
+                Text("Becomes a chip").tag(Config.Panel.Completion.scope)
+                Text("Types its keyword").tag(Config.Panel.Completion.text)
+            }
+            .setting("completion")
+            Toggle("Show half of the next row when the list overflows", isOn: $settings.config.panel.peekNextRow).setting("peek")
+        }
+        HomeSection(settings: settings, viewModel: viewModel)
+        ResetSection(settings: settings, page: .appearance)
+    }
+
+    private static func title(of material: Config.Panel.Material) -> String {
+        switch material {
+        case .glass: return "Liquid Glass"
+        case .clearGlass: return "Clear Glass"
+        case .popover: return "Blur"
+        case .hud: return "Dark Blur"
+        case .sidebar: return "Sidebar"
+        case .menu: return "Menu"
+        case .window: return "Window"
+        case .none: return "Solid"
+        }
+    }
+}
+
+/// A theme is one JSON file, so customising starts from a copy of the one you're using.
+private struct ThemeFileButtons: View {
+    @ObservedObject var settings: ConfigStore
+    @State private var error: String?
+
+    private var folder: URL { ThemeLibrary.userDirectory(configFile: settings.fileURL) }
+
+    var body: some View {
+        HStack {
+            Button("Customise This Theme…", action: customise)
+            Button("Show Themes Folder", action: showFolder)
+        }
+        if let error { ErrorCaption(error) }
+        Caption("Customising makes a copy in your themes folder and opens it to edit. Any .json file you add there appears here, and it moves with your settings.")
+    }
+
+    private func customise() {
+        let (name, folder) = (settings.config.panel.theme, folder)
+        Task {
+            do {
+                let copy = try await Task.detached { try ThemeLibrary.makeCopy(of: name, userDirectory: folder) }.value
+                error = nil
+                settings.config.panel.theme = copy
+                NSWorkspace.shared.open(folder.appendingPathComponent(copy + ".json"))
+            } catch {
+                self.error = "Couldn't copy the theme: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func showFolder() {
+        let folder = folder
+        Task.detached {
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            NSWorkspace.shared.open(folder)
+        }
+    }
+}
+
+private struct HomeSection: View {
+    @ObservedObject var settings: ConfigStore
+    let viewModel: SearchViewModel
+
+    /// What can sit on the home screen. A disabled feature has no entry, and an id in the file
+    /// that matches nothing stays there untouched.
+    private var homeItems: [Choice] {
+        let features = viewModel.providers.compactMap { $0.homeFeature() }.map { Choice(id: $0.id, title: $0.title, symbol: $0.symbol) }
+        let replaced = Set(viewModel.providers.compactMap { $0.homeFeature()?.replacesCommand })
+        let commands = viewModel.commands.visibleCommands.filter { !replaced.contains($0.id) }.map { Choice(id: $0.id, title: $0.title, symbol: $0.iconSymbol) }
+        return features + commands
+    }
+
+    private var sections: Binding<[String]> {
         Binding(
             get: { settings.config.home.sections.map(\.rawValue) },
             set: { settings.config.home.sections = Config.Home.Section.parse($0) }
         )
     }
-}
-
-private struct AppsPage: View {
-    @ObservedObject var settings: ConfigStore
-    let viewModel: SearchViewModel
 
     var body: some View {
-        Section("App folders") {
-            Toggle("Include Apple's built-in apps", isOn: $settings.config.search.includeSystemApps)
-            Caption("Adds /System/Applications. Off by default so results stay focused on apps you installed.")
-            StringListField(label: "Folders", values: $settings.config.search.appDirectories, placeholder: "/Applications")
-            NumberField(label: "Scan depth", value: $settings.config.search.scanDepth, min: 1)
-            Toggle("Watch folders for changes", isOn: $settings.config.search.watchFolders)
-            NumberField(label: "Rescan every", value: $settings.config.search.refreshIntervalSeconds, suffix: "s", min: 0)
-            Caption("0 rescans only on folder changes and Rebuild App Index.")
-        }
-        Section("Ranking") {
-            Toggle("Show recent apps when the search is empty", isOn: $settings.config.ranking.showRecents)
-            CommittedSlider(label: "Usage influence", value: $settings.config.ranking.usageWeight, range: 0...2, step: 0.25)
-            Caption("How much your launch history lifts an app. 0 ranks by name match only.")
-            NumberField(label: "Running app boost", value: $settings.config.ranking.runningBoost, min: 0)
-            StringMapField(label: "Provider weights", values: weights, placeholder: "files = 0.8 -5")
-            Caption("Advanced. Provider id = scale, then an optional bias: scale multiplies a provider's match scores, bias is added. settings = 1 -200 keeps System Settings panes under apps; set it to 1 to rank them by match alone. Ids: \(viewModel.providers.map(\.id).joined(separator: ", ")).")
-            NumberField(label: "Provider budget", value: $settings.config.ranking.budgetMs, suffix: "ms", min: 0)
-            if !viewModel.slowProviders.isEmpty {
-                ErrorCaption("Over budget since launch: " + viewModel.slowProviders.sorted { $0.value > $1.value }.map { "\($0.key) \(Int($0.value.rounded())) ms" }.joined(separator: ", "))
+        Section("Home screen") {
+            Picker("Layout", selection: $settings.config.home.layout) {
+                Text("List").tag(Config.Home.Layout.list)
+                Text("Tiles").tag(Config.Home.Layout.tiles)
             }
-        }
-        Section("Aliases") {
-            StringMapField(label: "Alias = app", values: $settings.config.aliases, placeholder: "ff = Firefox")
-            let unresolved = viewModel.apps.resolvedAliases.unresolved
-            if !unresolved.isEmpty {
-                ErrorCaption("No installed app matches: \(unresolved.joined(separator: ", "))")
+            .pickerStyle(.segmented)
+            .setting("home.layout")
+            if settings.config.home.layout == .tiles {
+                OrderedChecklist(label: "Tiles", choices: homeItems, chosen: $settings.config.home.tiles, limit: 3).setting("home.tiles")
+                ValueSlider(label: "Tile height", points: $settings.config.home.tileHeight, range: Config.Home.minimumTileHeight...240, step: 4).setting("home.tileHeight")
+            } else {
+                OrderedChecklist(label: "Sections", choices: Config.Home.Section.allCases.map { Choice(id: $0.rawValue, title: $0.title) }, chosen: sections).setting("home.sections")
+                ShownChecklist(label: "Rows", choices: homeItems, hidden: $settings.config.home.hidden).setting("home.hidden")
             }
-            Caption("One per line; the value is an app name or bundle identifier. Typing the alias exactly puts that app first.")
+            // The tiles have room for four.
+            IntStepper(label: "Recent apps shown", value: $settings.config.home.recentCount, range: settings.config.home.layout == .tiles ? 0...Config.Home.maximumTileRecents : 0...12).setting("home.recent")
         }
     }
 }
 
-private struct HotkeysPage: View {
+// MARK: - Shortcuts
+
+private struct ShortcutsSettingsPage: View {
     @ObservedObject var settings: ConfigStore
+    @ObservedObject var apps: AppIndex
     let viewModel: SearchViewModel
 
+    init(settings: ConfigStore, viewModel: SearchViewModel) {
+        self.settings = settings
+        self.viewModel = viewModel
+        apps = viewModel.apps.index
+    }
+
+    private func message(for conflict: (combo: KeyCombo, owner: String?, isLayout: Bool)) -> String {
+        guard let owner = conflict.owner else { return "\(conflict.combo.displayString) already opens Mestre." }
+        return "\(conflict.combo.displayString) is already used by \(hotkeyTitle(of: owner, viewModel: viewModel, apps: apps.apps))."
+    }
+
     var body: some View {
-        Section("Global hotkeys") {
-            StringMapField(label: "Shortcut = target", values: $settings.config.hotkeys, placeholder: "hyper+t = Terminal")
+        Section("Global shortcuts") {
+            GlobalHotkeysEditor(settings: settings, viewModel: viewModel, apps: apps.apps).setting("hotkeys")
             ForEach(settings.hotkeyErrors.sorted(by: { $0.key < $1.key }), id: \.key) { text, reason in
                 ErrorCaption("\(text): \(reason)")
             }
-            let unresolved = settings.hotkeyTable.unresolvedTargets(in: viewModel.apps.index.apps) { target in
+            if let conflict = settings.hotkeyConflict, !conflict.isLayout { ErrorCaption(message(for: conflict)) }
+            let unresolved = settings.hotkeyTable.unresolvedTargets(in: apps.apps) { target in
                 viewModel.commands.command(matching: target) != nil || HotkeyTable.featureID(in: target).flatMap(viewModel.feature(id:)) != nil
             }
             if !unresolved.isEmpty {
                 ErrorCaption("No installed app, command or enabled feature matches: \(unresolved.joined(separator: ", "))")
             }
-            Caption("One per line. hyper = ⌘⌥⌃⇧ (what a Caps Lock remap sends). A target is an app name or bundle id, a command id or title, window:<layout>, or feature:<id> to open the panel on a feature (feature:clipboard). The window layouts below have ⌃⌥ defaults; an empty target (\"ctrl+option+left =\") disables one.")
         }
-        Section("Window layouts in force") {
-            ForEach(settings.hotkeyTable.windowEntries, id: \.text) { entry in
-                LabeledContent(HotkeyTable.windowLayout(in: entry.target)?.title ?? entry.target) {
-                    Text(entry.combo.displayString)
-                        .foregroundStyle(settings.hotkeyErrors[entry.text] == nil ? Color.secondary : Color.red)
-                }
+        if settings.config.windows.enabled {
+            Section("Window layouts") {
+                WindowLayoutShortcuts(settings: settings).setting("layouts")
+                if let conflict = settings.hotkeyConflict, conflict.isLayout { ErrorCaption(message(for: conflict)) }
             }
         }
-    }
-}
-
-private struct KeysPage: View {
-    @ObservedObject var settings: ConfigStore
-
-    var body: some View {
-        Section("Overrides") {
-            StringMapField(label: "Action = keys", values: overrides, placeholder: "moveUp = up ctrl+k")
-            if !settings.keyBindings.unknownActions.isEmpty {
-                ErrorCaption("Unknown actions (ignored): \(settings.keyBindings.unknownActions.joined(separator: ", "))")
+        Section("Keys inside the panel") {
+            PanelKeysEditor(settings: settings).setting("panelKeys")
+            if !settings.keyBindings.conflicts.isEmpty {
+                ErrorCaption("Already bound to another action: \(settings.keyBindings.conflicts.joined(separator: ", "))")
             }
             if !settings.keyBindings.invalid.isEmpty {
                 ErrorCaption("Unrecognised: \(settings.keyBindings.invalid.joined(separator: ", "))")
             }
-            if !settings.keyBindings.conflicts.isEmpty {
-                ErrorCaption("Already bound to another action: \(settings.keyBindings.conflicts.joined(separator: ", "))")
+            if !settings.keyBindings.unknownActions.isEmpty {
+                ErrorCaption("Unknown actions (ignored): \(settings.keyBindings.unknownActions.joined(separator: ", "))")
             }
-            Caption("One action per line, several combos separated by spaces. A bound key never reaches the text field, so avoid plain letters.")
+            Toggle("Two-letter keys on commands and features", isOn: $settings.config.quickKeys.enabled).setting("quickKeys")
         }
-        Section("Quick keys") {
-            Toggle("Two-letter keys on commands and features", isOn: $settings.config.quickKeys.enabled)
-            StringMapField(label: "Key = id", values: $settings.config.quickKeys.keys, placeholder: "sl = sleep")
-            Caption("Generated from the title when not set here; shown on the row. Typing a key brings up its row: first for a key set here, and for a generated one first unless another row's name starts with those letters. Ids are the command and feature ids.")
+        ResetSection(settings: settings, page: .shortcuts)
+    }
+}
+
+/// What a hotkey target is called: the same name its row shows.
+@MainActor
+private func hotkeyTitle(of target: String, viewModel: SearchViewModel, apps: [AppEntry]) -> String {
+    if let layout = HotkeyTable.windowLayout(in: target) { return layout.title }
+    if let id = HotkeyTable.featureID(in: target) { return viewModel.feature(id: id)?.title ?? id }
+    if let app = apps.first(where: { $0.matches(target: target) }) { return app.name }
+    return CommandProvider.all.first { $0.matches(target: target) }?.title ?? target
+}
+
+/// One row per shortcut: the keys, then what they do, picked from a menu.
+private struct GlobalHotkeysEditor: View {
+    @ObservedObject var settings: ConfigStore
+    let viewModel: SearchViewModel
+    let apps: [AppEntry]
+    @State private var draftTarget: String?
+
+    private var rows: [(text: String, target: String)] {
+        settings.config.hotkeys
+            .filter { !$0.value.isEmpty && !$0.value.hasPrefix(HotkeyTable.windowPrefix) }
+            .sorted { $0.key < $1.key }
+            .map { ($0.key, $0.value) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(rows, id: \.text) { row in
+                HStack {
+                    recorder(for: row.text, target: row.target)
+                    targetMenu(row.target) { rebind(row.text, target: $0) }
+                    Spacer()
+                    RemoveButton { settings.config.hotkeys = HotkeyEdits.removing(row.text, from: settings.config.hotkeys, defaults: settings.config.hotkeyDefaults) }
+                }
+            }
+            if let draft = draftTarget {
+                HStack {
+                    HotKeyRecorder(combo: Binding(
+                        get: { .unset },
+                        set: { combo in
+                            if settings.bindHotkey(draft, to: combo, replacing: nil) { draftTarget = nil }
+                        }
+                    ), isRecording: $settings.isRecordingHotKey)
+                    .sized(width: 150)
+                    Text(title(of: draft)).foregroundStyle(.secondary)
+                    Spacer()
+                    RemoveButton { draftTarget = nil }
+                }
+            } else {
+                targetMenu(nil) { draftTarget = $0 }
+            }
         }
-        Section("Every action") {
+    }
+
+    private func recorder(for text: String, target: String) -> some View {
+        HotKeyRecorder(combo: Binding(
+            get: { KeyCombo(parsing: text) ?? .unset },
+            set: { combo in
+                settings.bindHotkey(target, to: combo, replacing: text)
+            }
+        ), isRecording: $settings.isRecordingHotKey)
+        .sized(width: 150)
+    }
+
+    private func rebind(_ text: String, target: String) {
+        settings.config.hotkeys[text] = target
+    }
+
+    private func title(of target: String) -> String {
+        hotkeyTitle(of: target, viewModel: viewModel, apps: apps)
+    }
+
+    private func targetMenu(_ current: String?, pick: @escaping (String) -> Void) -> some View {
+        Menu(current.map(title(of:)) ?? "Add Shortcut…") {
+            Menu("App") {
+                ForEach(apps) { app in
+                    Button(app.name) { pick(app.name) }
+                }
+            }
+            Menu("Feature") {
+                ForEach(viewModel.providers.compactMap { $0.homeFeature() }, id: \.id) { feature in
+                    Button(feature.title) { pick(HotkeyTable.featurePrefix + feature.id) }
+                }
+            }
+            Menu("Command") {
+                ForEach(viewModel.commands.visibleCommands, id: \.id) { command in
+                    Button(command.title) { pick(command.id) }
+                }
+            }
+        }
+        .fixedSize()
+    }
+}
+
+private struct WindowLayoutShortcuts: View {
+    @ObservedObject var settings: ConfigStore
+
+    var body: some View {
+        ForEach(WindowLayout.allCases, id: \.self) { layout in
+            let target = HotkeyTable.windowPrefix + layout.rawValue
+            let entry = settings.hotkeyTable.windowEntries.first { $0.target == target }
+            LabeledContent(layout.title) {
+                HStack {
+                    HotKeyRecorder(combo: Binding(
+                        get: { entry?.combo ?? .unset },
+                        set: { combo in
+                            settings.bindHotkey(target, to: combo, replacing: entry?.text)
+                        }
+                    ), isRecording: $settings.isRecordingHotKey)
+                    .sized(width: 150)
+                    Button { if let entry { settings.config.hotkeys = HotkeyEdits.removing(entry.text, from: settings.config.hotkeys, defaults: settings.config.hotkeyDefaults) } } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(entry == nil ? 0 : 1)
+                    .disabled(entry == nil)
+                    .help("Clear")
+                }
+            }
+        }
+    }
+}
+
+/// Each action with the key that runs it. Recording replaces the first key and keeps any others.
+private struct PanelKeysEditor: View {
+    @ObservedObject var settings: ConfigStore
+
+    var body: some View {
+        DisclosureGroup("\(settings.actionTable.entries.count) actions") {
             ForEach(settings.actionTable.entries) { entry in
                 LabeledContent {
-                    Text(combos(for: entry.id))
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: entry.icon ?? "circle").frame(width: 16).foregroundStyle(.secondary)
-                        Text(entry.title)
-                        Text(entry.id).font(.system(.caption, design: .monospaced)).foregroundStyle(.tertiary)
+                    HStack {
+                        HotKeyRecorder(combo: combo(for: entry.id), isRecording: $settings.isRecordingHotKey, allowsBareKeys: true)
+                            .sized(width: 130)
+                        Button { settings.config.keys.overrides[entry.id] = nil } label: { Image(systemName: "arrow.uturn.backward") }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .opacity(settings.config.keys.overrides[entry.id] == nil ? 0 : 1)
+                            .disabled(settings.config.keys.overrides[entry.id] == nil)
+                            .help("Back to the default")
                     }
-                    if !entry.isPanel, !entry.providers.isEmpty {
-                        Text(entry.providers.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary)
+                } label: {
+                    Label {
+                        Text(entry.title)
+                        Text(detail(for: entry.id)).font(.caption).foregroundStyle(.secondary)
+                    } icon: {
+                        Image(systemName: entry.icon ?? "circle")
                     }
                 }
             }
-            Caption("The name in the middle is what `keys` binds. ✎ marks a key you set.")
         }
     }
 
-    /// The combos in force for an action, "—" when it has none; ✎ when the user set them.
-    private func combos(for id: String) -> String {
-        guard let bound = settings.keyBindings.combos(for: id), !bound.combos.isEmpty else { return "—" }
-        return bound.combos.joined(separator: "  ") + (bound.isOverride ? "  ✎" : "")
+    /// The name the file uses, and any further keys the recorder leaves alone.
+    private func detail(for id: String) -> String {
+        let others = (settings.keyBindings.combos(for: id)?.combos ?? []).dropFirst()
+        return others.isEmpty ? id : "\(id), also \(others.joined(separator: ", "))"
     }
 
-    /// `keys.overrides` is name → [combo]; the editor shows combos space-separated (a combo
-    /// never contains a space: the key is spelled "space").
-    private var overrides: Binding<[String: String]> {
-        Binding(
-            get: { settings.config.keys.overrides.mapValues { $0.joined(separator: " ") } },
-            set: { map in settings.config.keys.overrides = map.mapValues { $0.split(whereSeparator: \.isWhitespace).map(String.init) } }
+    private func combo(for id: String) -> Binding<KeyCombo> {
+        let bound = settings.keyBindings.combos(for: id)?.combos ?? []
+        return Binding(
+            get: { bound.first.flatMap { KeyCombo(parsing: $0) } ?? .unset },
+            set: { settings.config.keys.overrides[id] = [$0.configString] + bound.dropFirst() }
         )
     }
 }
 
-private struct QuicklinksPage: View {
+// MARK: - Library
+
+/// The things only you can write: names, URLs, text and commands stay typed.
+private struct LibraryPage: View {
+    @ObservedObject var settings: ConfigStore
+    let viewModel: SearchViewModel
+    @Binding var section: SettingsLibrary
+
+    var body: some View {
+        Section {
+            Picker("Library", selection: $section) {
+                ForEach(SettingsLibrary.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
+        Group {
+            switch section {
+            case .quicklinks: QuicklinksSection(settings: settings)
+            case .snippets: SnippetsSection(settings: settings)
+            case .scripts: ScriptsSection(settings: settings)
+            case .aliases: AliasesSection(settings: settings, apps: viewModel.apps)
+            }
+        }
+        .setting("library." + section.rawValue)
+    }
+}
+
+private struct QuicklinksSection: View {
     @ObservedObject var settings: ConfigStore
 
     var body: some View {
@@ -329,53 +637,86 @@ private struct QuicklinksPage: View {
             ItemListEditor(items: $settings.config.quicklinks, addTitle: "Add Quicklink", template: { Quicklink(name: $0, url: "") }) { link, nameTaken in
                 VStack(spacing: 4) {
                     NameKeywordRow(name: link.name, keyword: link.keyword, nameTaken: nameTaken)
-                    CommittedField(value: link.url, render: { $0 }, parse: { $0 }, placeholder: "URL, {query} for a search", width: 276)
+                    CommittedField(value: link.url, render: { $0 }, parse: { $0 }, placeholder: "https://example.com/search?q={query}", width: 276)
                 }
             }
-            Caption("A URL with {query} is a search: type the keyword (one lowercase word) and then the words. Links without a placeholder open as they are; a URL without a scheme gets https://.")
+            Caption("Put {query} in a URL to make it a search: type the keyword, then the words.")
         }
     }
 }
 
-private struct ScriptsPage: View {
+private struct SnippetsSection: View {
     @ObservedObject var settings: ConfigStore
 
     var body: some View {
-        Section("Script filters") {
+        Section("Snippets") {
+            ItemListEditor(items: $settings.config.snippets.items, addTitle: "Add Snippet", template: { Snippet(name: $0, text: "") }) { snippet, nameTaken in
+                VStack(spacing: 4) {
+                    NameKeywordRow(name: snippet.name, keyword: snippet.keyword, nameTaken: nameTaken, keywordPlaceholder: "/keyword")
+                    CommittedField(value: snippet.text, render: { $0 }, parse: { $0 }, placeholder: "Text", width: 276, multiline: true)
+                }
+            }
+            Caption("Text can include {date}, {time}, {datetime}, {clipboard}, {uuid} and {cursor}.")
+        }
+    }
+}
+
+private struct ScriptsSection: View {
+    @ObservedObject var settings: ConfigStore
+
+    var body: some View {
+        Section("Scripts") {
             Toggle("Run scripts", isOn: $settings.config.scripts.enabled)
-            ItemListEditor(items: $settings.config.scripts.items, addTitle: "Add Script", template: { ScriptFilter(name: $0, keyword: $0.lowercased().filter(\.isLetter), command: "") }) { script, nameTaken in
+            ItemListEditor(items: $settings.config.scripts.items, addTitle: "Add Script", template: { ScriptFilter(name: $0, keyword: $0.lowercased().filter { $0.isLetter || $0.isNumber }, command: "") }) { script, nameTaken in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         CommittedField(value: script.name, render: { $0 }, parse: { nameTaken($0) ? nil : $0 }, placeholder: "Name", width: 180)
                         CommittedField(value: script.keyword, render: { $0 }, parse: { $0.lowercased().nilIfEmpty }, placeholder: "keyword", width: 90)
                         Picker("", selection: script.mode) {
-                            Text("once").tag(ScriptFilter.Mode.once)
-                            Text("per keystroke").tag(ScriptFilter.Mode.perKeystroke)
+                            Text("Once").tag(ScriptFilter.Mode.once)
+                            Text("Every keystroke").tag(ScriptFilter.Mode.perKeystroke)
                         }
                         .labelsHidden()
-                        .frame(width: 130)
+                        .frame(width: 140)
                     }
-                    CommittedField(value: script.command, render: { $0 }, parse: { $0 }, placeholder: "~/bin/script.sh (query as its argument) or a shell line ($1, MESTRE_QUERY)", width: 410)
-                    CommittedField(value: script.action, render: { $0 }, parse: { $0 }, placeholder: "On Return (optional): a command with the row's arg as $1", width: 410)
-                    CommittedField(value: script.needs, render: { $0.joined(separator: " ") }, parse: { $0.split(separator: " ").map(String.init) }, placeholder: "needs: clipboard fs:~/Documents network (shown as chips)", width: 410)
-                    HStack {
-                        NumberField(label: "Debounce", value: script.debounceMs, suffix: "ms", min: 0)
-                        NumberField(label: "Cache", value: script.cacheSeconds, suffix: "s", min: 0)
-                        NumberField(label: "Timeout", value: script.timeoutSeconds, suffix: "s", min: 1)
-                    }
+                    CommittedField(value: script.command, render: { $0 }, parse: { $0 }, placeholder: "~/bin/script.sh", width: 420)
+                    CommittedField(value: script.action, render: { $0 }, parse: { $0 }, placeholder: "On Return (optional)", width: 420)
                 }
             }
-            Caption("A script prints {\"items\": [{\"title\", \"subtitle\", \"arg\", \"uid\", \"icon\": {\"path\"}, \"valid\", \"autocomplete\", \"match\"}]} — the script-filter JSON many launcher scripts already print, so they port as they are. once: runs when the keyword is entered, Mestre filters the rows as you type. per keystroke: runs again on every change, after the debounce. Without an action, Return opens a URL or path argument and copies anything else.")
+            Caption("A script prints script-filter JSON: {\"items\": [{\"title\", \"subtitle\", \"arg\"}]}. Wait times and permissions are in the file.")
         }
     }
 }
 
-private extension AppsPage {
-    /// `ranking.providers` as "id = scale [bias]" lines, parsed by `Config.Ranking.Weight`.
-    var weights: Binding<[String: String]> {
-        Binding(
-            get: { settings.config.ranking.providers.mapValues(\.text) },
-            set: { settings.config.ranking.providers = $0.compactMapValues(Config.Ranking.Weight.init(parsing:)) }
-        )
+/// Short words that open an app.
+private struct AliasesSection: View {
+    @ObservedObject var settings: ConfigStore
+    let apps: AppProvider
+    @State private var draft = ""
+
+    var body: some View {
+        Section("Aliases") {
+            ForEach(settings.config.aliases.sorted(by: { $0.key < $1.key }), id: \.key) { alias, target in
+                LabeledContent(alias) {
+                    HStack {
+                        Text(apps.index.apps.first { $0.matches(target: target) }?.name ?? target).foregroundStyle(.secondary)
+                        RemoveButton { settings.config.aliases[alias] = nil }
+                    }
+                }
+            }
+            HStack {
+                TextField("Alias", text: $draft, prompt: Text("ff")).labelsHidden().textFieldStyle(.roundedBorder).frame(width: 90)
+                AppChooser(title: "Choose App…", apps: apps.index.apps) { app in
+                    settings.config.aliases[draft.trimmingCharacters(in: .whitespaces)] = app.name
+                    draft = ""
+                }
+                .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            let unresolved = apps.resolvedAliases.unresolved
+            if !unresolved.isEmpty {
+                ErrorCaption("No installed app matches: \(unresolved.joined(separator: ", "))")
+            }
+            Caption("Typing an alias exactly puts that app first.")
+        }
     }
 }

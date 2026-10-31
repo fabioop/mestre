@@ -2,6 +2,7 @@ import SwiftUI
 
 /// "Launch at login" switch backed by SMAppService; shared by Settings and the welcome window.
 struct LaunchAtLoginToggle: View {
+    let settings: ConfigStore
     @State private var enabled = LaunchAtLogin.isEnabled
     @State private var error: String?
 
@@ -30,6 +31,7 @@ struct LaunchAtLoginToggle: View {
                 do {
                     try LaunchAtLogin.setEnabled(wanted)
                     enabled = wanted
+                    settings.config.startup.launchAtLogin = wanted
                     error = nil
                 } catch {
                     self.error = error.localizedDescription

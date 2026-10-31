@@ -95,12 +95,6 @@ private struct FakeItem: SearchItem {
         #expect(merged.map(\.item.id) == ["Blackmagic", "Keyboard"])
     }
 
-    @Test func weightParsesAndPrintsItsText() {
-        #expect(Config.Ranking.Weight(parsing: "1.2 -5") == Config.Ranking.Weight(scale: 1.2, bias: -5))
-        #expect(Config.Ranking.Weight(parsing: "2")?.text == "2" && Config.Ranking.Weight(scale: 1.5, bias: 0.5).text == "1.5 0.5")
-        #expect(Config.Ranking.Weight(parsing: "x") == nil && Config.Ranking.Weight(parsing: "1 2 3") == nil)
-    }
-
     @Test func rankingConfigDecodesClampsAndKeepsTheDefaults() throws {
         let config = try JSONDecoder().decode(Config.self, from: Data(#"{"ranking": {"providers": {"files": {"scale": -1}}, "budgetMs": -3}}"#.utf8))
         #expect(config.ranking.weight(for: "files").scale == 0 && config.ranking.weight(for: "apps") == Config.Ranking.Weight())

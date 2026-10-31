@@ -93,6 +93,8 @@ final class SearchPanelController: NSObject, NSWindowDelegate {
     private func mount(in container: NSView, attach: (NSView) -> Void) {
         guard panel.contentView !== container else { return }
         hostingView.removeFromSuperview()
+        // The glass keeps its contentView after that, and setting the same one again does nothing.
+        if #available(macOS 26.0, *) { (glassView as? NSGlassEffectView)?.contentView = nil }
         attach(hostingView)
         NSLayoutConstraint.activate([
             hostingView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -105,16 +107,28 @@ final class SearchPanelController: NSObject, NSWindowDelegate {
 
     private var appliedLayout: Config.Panel?
     private var appliedAppearance: Config.Panel.Appearance?
+    private var maskRadius: Double?
 
     private func apply(_ layout: Config.Panel) {
         if #available(macOS 26.0, *), layout.material.isGlass {
             let glass = (glassView as? NSGlassEffectView) ?? NSGlassEffectView()
             glass.cornerRadius = layout.cornerRadius
             glass.style = layout.material == .clearGlass ? .clear : .regular
+            // The glass draws a soft shadow around itself, and the window cuts that shadow off
+            // square: without this clip a faint rectangle shows in all four corners.
+            glass.wantsLayer = true
+            glass.layer?.cornerCurve = .continuous
+            glass.layer?.cornerRadius = layout.cornerRadius
+            glass.layer?.masksToBounds = true
             glassView = glass
             mount(in: glass) { glass.contentView = $0 }
         } else {
             effectView.layer?.cornerRadius = layout.cornerRadius
+            // The layer's corners don't reach the blur behind the window; only a mask image does.
+            if maskRadius != layout.cornerRadius {
+                effectView.maskImage = Self.cornerMask(radius: layout.cornerRadius)
+                maskRadius = layout.cornerRadius
+            }
             // "none" keeps the view (it hosts the content) but drops the blur.
             effectView.state = layout.material == .none ? .inactive : .active
             effectView.material = Self.material(for: layout.material)
@@ -134,6 +148,19 @@ final class SearchPanelController: NSObject, NSWindowDelegate {
             if moved { positionOnActiveScreen() }
         }
         appliedLayout = layout
+    }
+
+    /// A rounded shape that stretches with the panel, so resizing doesn't redraw it.
+    private static func cornerMask(radius: CGFloat) -> NSImage {
+        let side = 2 * radius + 1
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
     }
 
     private static func material(for material: Config.Panel.Material) -> NSVisualEffectView.Material {

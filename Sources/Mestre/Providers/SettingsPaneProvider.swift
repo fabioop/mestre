@@ -50,6 +50,8 @@ final class SettingsPaneProvider: ResultProvider {
     var replaceQuery: ((String) -> Void)?
 
     private var all: [SettingsPaneItem] = []
+    /// Everything the launch scan found, hidden or not; Settings lists it.
+    var panes: [SettingsPane] { all.map(\.pane) }
     private var visible: [SettingsPaneItem] = []
 
     init() {

@@ -7,10 +7,12 @@ import SwiftUI
 struct HotKeyRecorder: NSViewRepresentable {
     @Binding var combo: KeyCombo
     @Binding var isRecording: Bool
+    /// Keys inside the panel may be plain (↑, ⇥); a global shortcut needs a modifier.
+    var allowsBareKeys = false
 
     func makeNSView(context: Context) -> RecorderView {
         let view = RecorderView(combo: combo)
-        view.onChange = { combo = $0 }
+        view.allowsBareKeys = allowsBareKeys
         view.onRecordingChange = { recording in
             // Hop off the responder-chain callback before touching SwiftUI state.
             DispatchQueue.main.async { isRecording = recording }
@@ -19,12 +21,24 @@ struct HotKeyRecorder: NSViewRepresentable {
     }
 
     func updateNSView(_ view: RecorderView, context: Context) {
+        // Refreshed every update: a caller's binding can capture the row as it was drawn.
+        view.onChange = { combo = $0 }
         if view.combo != combo { view.combo = combo }
+    }
+}
+
+extension HotKeyRecorder {
+    /// A fixed size, centred on the row: an AppKit view has no text baseline for a form to
+    /// line its label up with, and the row grows trying.
+    func sized(width: CGFloat, height: CGFloat = 24) -> some View {
+        frame(width: width, height: height)
+            .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
     }
 }
 
 final class RecorderView: NSView {
     var combo: KeyCombo { didSet { needsDisplay = true } }
+    var allowsBareKeys = false
     var onChange: ((KeyCombo) -> Void)?
     var onRecordingChange: ((Bool) -> Void)?
 
@@ -46,11 +60,6 @@ final class RecorderView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
 
-    override func becomeFirstResponder() -> Bool {
-        isRecording = true
-        return true
-    }
-
     override func resignFirstResponder() -> Bool {
         isRecording = false
         return true
@@ -60,12 +69,42 @@ final class RecorderView: NSView {
         if isRecording {
             stopRecording()
         } else {
-            window?.makeFirstResponder(self)
+            startRecording()
         }
     }
 
     override func keyDown(with event: NSEvent) {
-        handle(event)
+        if isRecording {
+            handle(event)
+        } else if Int(event.keyCode) == kVK_Space || Int(event.keyCode) == kVK_Return {
+            startRecording()
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+
+    /// Only on request. Recording switches every global hotkey off, so being handed focus when
+    /// a window opens must not start it.
+    private func startRecording() {
+        window?.makeFirstResponder(self)
+        isRecording = true
+    }
+
+    /// AppKit doesn't resign a view that leaves its window (another page, a closed window), and
+    /// a window that stops being key keeps its first responder. Either way the hotkeys come back.
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if let window {
+            NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: window)
+        }
+        if newWindow == nil {
+            isRecording = false
+        } else {
+            NotificationCenter.default.addObserver(self, selector: #selector(windowDidResignKey), name: NSWindow.didResignKeyNotification, object: newWindow)
+        }
+    }
+
+    @objc private func windowDidResignKey() {
+        isRecording = false
     }
 
     // ⌘-combinations arrive here before keyDown; swallow them while recording.
@@ -85,15 +124,20 @@ final class RecorderView: NSView {
             stopRecording()
             return
         }
-        // A bare letter would hijack normal typing system-wide; require a modifier
-        // unless it is a function key.
-        guard !modifiers.isEmpty || KeyCombo.functionKeyCodes.contains(Int(event.keyCode)) else {
+        // A bare letter would hijack normal typing, system-wide or in the search field; require
+        // a modifier unless it is a function key, or in the panel any key that doesn't type.
+        let code = Int(event.keyCode)
+        guard !modifiers.isEmpty || KeyCombo.functionKeyCodes.contains(code) || (allowsBareKeys && !KeyCombo.typesText(keyCode: code)) else {
             NSSound.beep()
             return
         }
-        let label = KeyCombo.label(forKeyCode: event.keyCode, characters: event.charactersIgnoringModifiers)
-        combo = KeyCombo(keyCode: UInt32(event.keyCode), modifiers: modifiers, keyLabel: label)
-        onChange?(combo)
+        // No modifiers applied, so ⇧1 is "1": Shift's symbols can't be read back as a key.
+        guard let recorded = KeyCombo.recorded(keyCode: event.keyCode, modifiers: modifiers, characters: event.characters(byApplyingModifiers: [])) else {
+            NSSound.beep()
+            return
+        }
+        combo = recorded
+        onChange?(recorded)
         stopRecording()
     }
 
@@ -109,7 +153,7 @@ final class RecorderView: NSView {
         path.lineWidth = isRecording ? 1.5 : 1
         path.stroke()
 
-        let text = isRecording ? "Type shortcut…" : combo.displayString
+        let text = isRecording ? "Type shortcut…" : combo == .unset ? "Record Shortcut" : combo.displayString
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         let attributes: [NSAttributedString.Key: Any] = [

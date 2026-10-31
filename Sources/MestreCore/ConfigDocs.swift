@@ -10,12 +10,12 @@ public enum ConfigDocs {
         switch key {
         case .hotKey: return "Shortcut that opens the panel, e.g. \"option+space\" or \"hyper+m\"."
         case .hotkeys: return "Global shortcut → app name or bundle id, command id, \"window:<layout>\" or \"feature:<id>\"."
-        case .keys: return "What each key does inside the panel; names from Settings › Keys."
+        case .keys: return "What each key does inside the panel; names from Settings › Shortcuts."
         case .aliases: return "Shorthand → app, e.g. \"ff\": \"Firefox\"."
         case .quicklinks: return "Saved links; {query} in a URL makes it a search."
         case .quickKeys: return "Two-letter keys on commands and features; typing one puts its row first."
-        case .panel: return "Size, look, accent, second lines, footer, compact mode, completion style."
-        case .home: return "What an empty query shows: recent, features, commands; hidden ids."
+        case .panel: return "Size, theme, look, accent, second lines, footer, compact mode, completion style."
+        case .home: return "What an empty query shows: a list (recent, features, commands; hidden ids) or tiles."
         case .search: return "Where apps are found and how many results exist."
         case .ranking: return "Usage weight, running boost, provider weights, per-provider time budget."
         case .calculator: return "Expressions typed straight into the panel."
@@ -36,6 +36,7 @@ public enum ConfigDocs {
         case .bookmarks: return "Browser bookmarks: bm <text>."
         case .colors: return "Colour conversion rows."
         case .scripts: return "Keyword → a command that prints JSON rows; once or per keystroke."
+        case .startup: return "Launch at login; missing leaves what macOS has."
         case .onboarding: return "The welcome window."
         case .debug: return "Timing logs."
         }
@@ -49,7 +50,7 @@ public enum ConfigDocs {
     public static func starterFile() -> String {
         let notes: [String: String] = [
             "_": "Mestre reads this file on every save. Every key is optional; what is missing keeps its default.",
-            "_defaults": "See every default with its note: mestre --show-config --default --docs, or Settings › General › Show defaults.",
+            "_defaults": "See every default with its note: mestre --show-config --default --docs, or Settings › General › All Options.",
             "_docs": docsURL,
             "_sections": Config.CodingKeys.allCases.map(\.rawValue).joined(separator: ", "),
         ]

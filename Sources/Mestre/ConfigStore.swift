@@ -14,6 +14,8 @@ final class ConfigStore: ObservableObject {
                 hotkeyTable = HotkeyTable(hotkeys: config.hotkeys, defaults: config.hotkeyDefaults, panelHotKey: config.hotKey)
             }
             if config != lastPersisted { save() }
+            // Undo replaces the whole file: once anything has changed since, it would lose that too.
+            if let undo = resetUndo, config != undo.result { resetUndo = nil }
         }
     }
     /// Parsed once per change to `config.keys` or the action table; the panel and Settings read this.
@@ -27,6 +29,16 @@ final class ConfigStore: ObservableObject {
 
     // Transient UI state, not persisted.
     @Published var isRecordingHotKey = false
+    /// What the theme in use decides, resolved by the app delegate; Settings hides those controls.
+    @Published var themeOverrides = Theme().overrides(dark: false)
+    /// Why the theme named in the config could not be used.
+    @Published var themeError: String?
+    /// Bumped when the themes folder changes, so Settings lists it again.
+    @Published var themeFilesRevision = 0
+    /// A recorded shortcut refused because something else answers to it (nil owner: the panel).
+    @Published private(set) var hotkeyConflict: (combo: KeyCombo, owner: String?, isLayout: Bool)?
+    /// The reset that Undo would take back: the id its section gave, and what it left.
+    @Published private(set) var resetUndo: (id: String, result: Config)?
     /// Parsed `hotkeys` section, rebuilt with the config.
     @Published private(set) var hotkeyTable = HotkeyTable(hotkeys: [:], defaults: [:], panelHotKey: .default)
     /// Why the panel hotkey could not be registered, if it couldn't.
@@ -40,6 +52,25 @@ final class ConfigStore: ObservableObject {
     private var lastPersisted: Config
     private var watcher: DirectoryWatcher?
     private var fileWatcher: FileWatcher?
+
+    /// Points `target` at a recorded shortcut, unless that would take it from something else.
+    /// Reads the file's current state, so a stale row can't write an old key back.
+    @discardableResult
+    func bindHotkey(_ target: String, to combo: KeyCombo, replacing old: String?) -> Bool {
+        let isLayout = target.hasPrefix(HotkeyTable.windowPrefix)
+        if combo.isSameKey(as: config.hotKey) {
+            hotkeyConflict = (combo, nil, isLayout)
+            return false
+        }
+        let isOwnKey = old.flatMap { KeyCombo(parsing: $0) }?.isSameKey(as: combo) ?? false
+        if !isOwnKey, let owner = hotkeyTable.owner(of: combo), owner != target {
+            hotkeyConflict = (combo, owner, isLayout)
+            return false
+        }
+        hotkeyConflict = nil
+        config.hotkeys = HotkeyEdits.binding(target, to: combo.configString, replacing: old, in: config.hotkeys, defaults: config.hotkeyDefaults)
+        return true
+    }
 
     /// $XDG_CONFIG_HOME/mestre/config.json, defaulting to ~/.config/mestre/config.json.
     nonisolated static var defaultFileURL: URL {
@@ -129,7 +160,7 @@ final class ConfigStore: ObservableObject {
     private func write(_ data: Data) -> Bool {
         do {
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try data.write(to: fileURL, options: .atomic)
+            try data.write(to: Self.writeTarget(of: fileURL), options: .atomic)
             return true
         } catch {
             NSLog("Config: failed to write %@: %@", fileURL.path, error.localizedDescription)
@@ -137,10 +168,50 @@ final class ConfigStore: ObservableObject {
         }
     }
 
+    /// Through a symlink: an atomic write would replace a dotfiles link with a plain file.
+    private nonisolated static func writeTarget(of file: URL) -> URL { file.resolvingSymlinksInPath() }
+
     /// The file as it is, with no side effects: for `--show-config`.
     static func readCurrent() -> Config {
         if case .success(let config, _) = read(from: defaultFileURL) { return config }
         return Config()
+    }
+
+    // MARK: Reset
+
+    private var backupURL: URL { fileURL.deletingLastPathComponent().appendingPathComponent("config.backup.json") }
+
+    /// Keeps the file as it is now in `config.backup.json`, then applies `change`. Replaces a
+    /// file that doesn't parse too: that's when a reset is most wanted, and the backup keeps it.
+    /// False when there was nothing to reset, which leaves an earlier backup alone.
+    func reset(id: String, with change: (Config) -> Config) async throws -> Bool {
+        let wasBroken = loadError != nil
+        let next = change(config)
+        guard wasBroken || next != config else { return false }
+        let (link, backup) = (fileURL, backupURL)
+        let hasBackup = try await Task.detached {
+            let manager = FileManager.default
+            let file = Self.writeTarget(of: link)
+            try? manager.removeItem(at: backup)
+            guard manager.fileExists(atPath: file.path) else { return false }
+            try manager.copyItem(at: file, to: backup)
+            return true
+        }.value
+        loadError = nil
+        config = next
+        if wasBroken { save() }
+        resetUndo = hasBackup ? (id, next) : nil
+        return true
+    }
+
+    /// Puts the backup back; the file watcher reads it in.
+    func undoReset() async throws {
+        let (link, backup) = (fileURL, backupURL)
+        resetUndo = nil
+        try await Task.detached {
+            try Data(contentsOf: backup).write(to: Self.writeTarget(of: link), options: .atomic)
+            try FileManager.default.removeItem(at: backup)
+        }.value
     }
 
     // MARK: Watching
