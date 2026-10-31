@@ -91,12 +91,12 @@ Do this before the first release: a build made without the public key can never 
 ```
 
 ```bash
-.build/artifacts/sparkle/Sparkle/bin/generate_keys -x sparkle-private.key
+.build/artifacts/sparkle/Sparkle/bin/generate_keys -x ~/sparkle-private.key
 ```
 
 The first command stores the private key in your login Keychain and prints the public key. The
-second exports the private key: paste it into the secret, then delete the file. Keep the Keychain
-item backed up, because installed copies can only verify updates signed with this key.
+second exports the private key outside the repo, so it can't get committed. Back it up, add it as
+the secret, then delete the file. Installed copies can only verify updates signed with this key.
 
 | Name | Kind | Value |
 | --- | --- | --- |
