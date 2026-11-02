@@ -17,6 +17,10 @@ Name: Mestre (Portuguese for "master"). Bundle id `app.mestre.Mestre`, config at
 - `make release` — suggests a version from the commits, tags `master` and pushes; CI does the rest. See docs/releasing.md.
 - Targets: `MestreCore` (pure logic, tested), `Mestre` (app). Swift language mode 5 to keep AppKit interop simple.
 
+## Review
+
+After any change, before calling it done: run `/simplify`, then `/code-review` on the result, and fix what they find. `/simplify` cleans up quality without looking for bugs; `/code-review` looks for correctness bugs, so its pass has to see the simplified code.
+
 ## Conventions
 
 - Commits follow Conventional Commits: `type(scope): summary`, for example `fix(panel): keep the glass view attached` or `feat(themes): add the micro theme`.
