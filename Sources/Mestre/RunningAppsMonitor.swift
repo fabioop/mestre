@@ -26,7 +26,7 @@ final class RunningAppsMonitor: ObservableObject {
 
     func isRunning(_ entry: AppEntry) -> Bool {
         if let id = entry.bundleIdentifier, identifiers.contains(id) { return true }
-        return identifiers.contains(entry.url.resolvingSymlinksInPath().path)
+        return identifiers.contains(entry.resolvedPath)
     }
 
     /// Running instances of an app, matched by bundle identifier or bundle path.

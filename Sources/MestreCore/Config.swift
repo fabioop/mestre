@@ -8,7 +8,7 @@ public struct Config: Codable, Equatable, Sendable {
         /// Folders scanned for .app bundles. "~" expands to the home directory.
         public var appDirectories: [String] = ["/Applications", "~/Applications"]
         /// Also index Apple's built-in apps (/System/Applications and the system cryptex).
-        public var includeSystemApps: Bool = false
+        public var includeSystemApps: Bool = true
         /// How many folder levels to descend (2 reaches /Applications/Utilities).
         public var scanDepth: Int = 2
         /// Maximum rows shown in the results list.
@@ -40,6 +40,8 @@ public struct Config: Codable, Equatable, Sendable {
         public var showRecents: Bool = true
         /// Extra score for apps that are currently running (switching is the common case).
         public var runningBoost: Double = 5
+        /// Taken off Apple's built-in apps, so an app you installed wins a near-tie ("m" → Mestre, not Mail).
+        public var systemAppPenalty: Double = 2
 
         /// How one provider's rows weigh against the others' when results are merged.
         public struct Weight: Codable, Equatable, Sendable {
@@ -71,16 +73,22 @@ public struct Config: Codable, Equatable, Sendable {
 
         public init() {}
 
-        enum CodingKeys: String, CodingKey { case usageWeight, showRecents, runningBoost, providers, budgetMs }
+        enum CodingKeys: String, CodingKey { case usageWeight, showRecents, runningBoost, systemAppPenalty, providers, budgetMs }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             usageWeight = try c.decodeIfPresent(Double.self, forKey: .usageWeight) ?? usageWeight
             showRecents = try c.decodeIfPresent(Bool.self, forKey: .showRecents) ?? showRecents
             runningBoost = try c.decodeIfPresent(Double.self, forKey: .runningBoost) ?? runningBoost
+            systemAppPenalty = try c.decodeIfPresent(Double.self, forKey: .systemAppPenalty) ?? systemAppPenalty
             let listed = try c.decodeIfPresent([String: Weight].self, forKey: .providers) ?? [:]
             providers = Self.defaultProviders.merging(listed) { _, file in file }
             budgetMs = max(0, try c.decodeIfPresent(Double.self, forKey: .budgetMs) ?? budgetMs)
+        }
+
+        /// What being open or built in adds to an app's match score.
+        public func boost(for entry: AppEntry, isRunning: Bool) -> Double {
+            (isRunning ? runningBoost : 0) - (entry.isSystemApp ? systemAppPenalty : 0)
         }
 
         /// The weight for a provider id, default when unlisted.

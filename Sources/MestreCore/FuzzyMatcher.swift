@@ -10,6 +10,10 @@ public enum FuzzyMatcher {
         public let positions: [Int]
     }
 
+    /// A candidate that can't score as a prefix or an exact match, only from its word starts:
+    /// a query is trimmed, so it never matches the leading space.
+    public static func unanchored(_ candidate: String) -> String { " " + candidate }
+
     public static func match(_ query: String, in candidate: String) -> Match? {
         let q = Array(query.lowercased())
         guard !q.isEmpty else { return nil }

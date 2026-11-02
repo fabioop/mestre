@@ -48,21 +48,24 @@ import Testing
         let config = try decode("{}")
         #expect(config == Config())
         #expect(config.hotKey == .default)
-        #expect(config.search.includeSystemApps == false)
+        #expect(config.search.includeSystemApps)
     }
 
     @Test func partialSearchSectionKeepsOtherDefaults() throws {
-        let config = try decode(#"{"search": {"includeSystemApps": true}}"#)
-        #expect(config.search.includeSystemApps)
+        let config = try decode(#"{"search": {"includeSystemApps": false}}"#)
+        #expect(!config.search.includeSystemApps)
         #expect(config.search.appDirectories == ["/Applications", "~/Applications"])
         #expect(config.search.maxResults == 8)
+        // Saving writes only what differs from the defaults, so an explicit false has to be kept.
+        let search = try ConfigDocs.changes(in: config)["search"] as? [String: Any]
+        #expect(search?["includeSystemApps"] as? Bool == false)
     }
 
     @Test func systemFoldersAppendedOnlyWhenEnabled() {
         var config = Config()
-        #expect(config.resolvedAppDirectories.map(\.path) == ["/Applications", NSHomeDirectory() + "/Applications"])
-        config.search.includeSystemApps = true
         #expect(config.resolvedAppDirectories.map(\.path).contains("/System/Applications"))
+        config.search.includeSystemApps = false
+        #expect(config.resolvedAppDirectories.map(\.path) == ["/Applications", NSHomeDirectory() + "/Applications"])
     }
 
     @Test func badHotKeyIsAnError() {

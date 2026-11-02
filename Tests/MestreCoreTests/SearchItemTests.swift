@@ -155,3 +155,50 @@ private struct FakeItem: SearchItem {
         #expect(StubProvider(id: "apps").title == "Apps" && StubProvider(id: "keepAwake").title == "Keep Awake")
     }
 }
+
+@Suite struct SystemAppRankingTests {
+    private let system = "/System/Applications"
+
+    @MainActor private func top(_ query: String, in apps: [AppEntry]) -> String? {
+        let ranking = Config().ranking
+        return Ranker.rank(apps, query: query, limit: 8, provider: StubProvider()) { ranking.boost(for: $0, isRunning: false) }.first?.item.title
+    }
+
+    @Test func bundleIdentifierIsSearchableWithoutWhatAppsShare() {
+        let home = entry("Home", in: system, id: "com.apple.Home")
+        #expect(home.keywords == [FuzzyMatcher.unanchored("Home")])
+        for query in ["ch", "app", "apple", "com"] {
+            #expect(Ranker.score(home, query: query, lowercasedQuery: query) == nil)
+        }
+        #expect(entry("Code", id: "com.microsoft.VSCode").keywords == [FuzzyMatcher.unanchored("microsoft.VSCode")])
+        #expect(entry("Tool", id: "org.tool.app").keywords == [FuzzyMatcher.unanchored("tool.app")])
+        #expect(entry("Solo", id: "solo").keywords.isEmpty)
+    }
+
+    @Test @MainActor func aVendorNameFindsAnAppButNeverOutranksAPrefix() {
+        let apps = [entry("Safari", in: system), entry("Install SanDisk Software", id: "com.sandisk.installer"),
+                    entry("Mission Control", in: system), entry("Visual Studio Code", id: "com.microsoft.VSCode"),
+                    entry("App Store", in: system), entry("Claude", id: "com.anthropic.claudefordesktop"),
+                    entry("Books", in: system), entry("DaVinci Resolve", id: "com.blackmagic-design.DaVinciResolve")]
+        #expect(top("sa", in: apps) == "Safari")
+        #expect(top("mi", in: apps) == "Mission Control")
+        #expect(top("a", in: apps) == "App Store")
+        #expect(top("b", in: apps) == "Books")
+        #expect(top("microsoft", in: apps) == "Visual Studio Code")
+        #expect(top("anthropic", in: apps) == "Claude")
+    }
+
+    @Test func onlyFoldersUnderSystemCountAsBuiltIn() {
+        #expect(entry("Safari", in: "/System/Cryptexes/App/System/Applications").isSystemApp)
+        #expect(!entry("Xcode", id: "com.apple.dt.Xcode").isSystemApp)
+    }
+
+    @Test @MainActor func penaltySettlesNearTiesButNotBetterMatches() {
+        let apps = [entry("Mail", in: system), entry("Contacts", in: system, id: "com.apple.AddressBook"),
+                    entry("Mestre"), entry("Spotify", id: "com.spotify.client"),
+                    entry("Email Client"), entry("Disco Tools")]
+        #expect(top("m", in: apps) == "Mestre")
+        #expect(top("mai", in: apps) == "Mail")
+        #expect(top("co", in: apps) == "Contacts")
+    }
+}

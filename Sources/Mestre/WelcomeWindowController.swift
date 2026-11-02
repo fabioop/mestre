@@ -214,7 +214,7 @@ private struct WelcomeView: View {
     /// Follows the config: a renamed keyword shows up renamed, a feature that's off doesn't show.
     private var examples: [(query: String, what: String)] {
         let config = settings.config
-        // Safari sits outside the default scan; a short name reads best as something to type.
+        // Any Mac has Safari, unless built-in apps are off; a short name reads best as something to type.
         let app = apps.apps.first { $0.matches(target: "Safari") } ?? apps.apps.min { $0.name.count < $1.name.count }
         var rows: [(String, String)] = []
         if let app { rows.append((app.name.lowercased(), "open an app")) }
