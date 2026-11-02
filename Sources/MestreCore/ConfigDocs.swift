@@ -17,7 +17,7 @@ public enum ConfigDocs {
         case .panel: return "Size, theme, look, accent, second lines, footer, compact mode, completion style."
         case .home: return "What an empty query shows: a list (recent, features, commands; hidden ids) or tiles."
         case .search: return "Where apps are found and how many results exist."
-        case .ranking: return "Usage weight, running boost, provider weights, per-provider time budget."
+        case .ranking: return "Usage weight, running boost, built-in app penalty, provider weights, per-provider time budget."
         case .calculator: return "Expressions typed straight into the panel."
         case .commands: return "System commands: on/off, confirmation, hidden ids."
         case .settingsPanes: return "System Settings panes as results."
