@@ -42,8 +42,8 @@ final class StubProvider: ResultProvider {
     func perform(_ action: ItemAction, on item: any SearchItem) {}
 }
 
-func entry(_ name: String, in folder: String = "/Applications") -> AppEntry {
-    AppEntry(name: name, url: URL(fileURLWithPath: "\(folder)/\(name).app"), bundleIdentifier: nil, icon: nil)
+func entry(_ name: String, in folder: String = "/Applications", id: String? = nil) -> AppEntry {
+    AppEntry(name: name, url: URL(fileURLWithPath: "\(folder)/\(name).app"), bundleIdentifier: id, icon: nil)
 }
 
 @Suite struct RankerTests {

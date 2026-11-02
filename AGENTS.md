@@ -23,6 +23,6 @@ Name: Mestre (Portuguese for "master"). Bundle id `app.mestre.Mestre`, config at
 - Global hotkey uses Carbon `RegisterEventHotKey` (no Accessibility permission needed). Default ⌥Space.
 - The search panel is a non-activating `NSPanel`; keyboard navigation goes through the `NSTextField` delegate's `doCommandBy:` (moveUp:/moveDown:/insertNewline:/cancelOperation:), not event monitors.
 - All user settings go through `Config` (MestreCore) and `ConfigStore` (app): JSON at `~/.config/mestre/config.json`, every key optional with a default, file watched for live reload. Never add a setting to UserDefaults; usage stats are the one exception (data, not config).
-- Default search scope is user-installed apps (/Applications, ~/Applications); system apps are opt-in via `search.includeSystemApps`.
+- Default search scope is /Applications, ~/Applications and Apple's built-in apps; `search.includeSystemApps: false` leaves the built-in ones out.
 - Prefer AppKit where SwiftUI on macOS is awkward (text field focus, key handling); SwiftUI for layout.
 - Shortcut conventions: ⌃⌥ for window management and other global defaults. `hyper` (⌘⌥⌃⇧) is available as a modifier but needs a remapper, so no default uses it.

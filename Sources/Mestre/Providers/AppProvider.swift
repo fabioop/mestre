@@ -83,11 +83,10 @@ final class AppProvider: ResultProvider {
             guard ranking.showRecents else { return [] }
             scored = Ranker.recents(apps, limit: limit, provider: self) { [usage] in usage.boost(for: $0) }
         } else {
-            let runningBoost = ranking.runningBoost
             let table = resolvedAliases
             scored = Ranker.rank(apps, query: query.text, limit: limit, provider: self,
-                                 aliases: table.isEmpty ? { _ in [] } : { table.aliases(for: $0.id) }) { [usage, running] entry in
-                usage.boost(for: entry) + (running.isRunning(entry) ? runningBoost : 0)
+                                 aliases: table.isEmpty ? { _ in [] } : { table.aliases(for: $0.id) }) { [usage, running, ranking] entry in
+                usage.boost(for: entry) + ranking.boost(for: entry, isRunning: running.isRunning(entry))
             }
         }
         // Swap the bare entry for an item that knows its running state and actions.

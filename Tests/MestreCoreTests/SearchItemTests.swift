@@ -155,3 +155,33 @@ private struct FakeItem: SearchItem {
         #expect(StubProvider(id: "apps").title == "Apps" && StubProvider(id: "keepAwake").title == "Keep Awake")
     }
 }
+
+@Suite struct SystemAppRankingTests {
+    private let system = "/System/Applications"
+
+    @Test func bundleIdentifierIsSearchableWithoutWhatAppsShare() {
+        let home = entry("Home", in: system, id: "com.apple.Home")
+        #expect(home.keywords == ["Home"])
+        for query in ["ch", "app", "apple", "com"] {
+            #expect(Ranker.score(home, query: query, lowercasedQuery: query) == nil)
+        }
+        #expect(entry("Code", id: "com.microsoft.VSCode").keywords == ["microsoft.VSCode"])
+    }
+
+    @Test func onlyFoldersUnderSystemCountAsBuiltIn() {
+        #expect(entry("Safari", in: "/System/Cryptexes/App/System/Applications").isSystemApp)
+        #expect(!entry("Xcode", id: "com.apple.dt.Xcode").isSystemApp)
+    }
+
+    @Test @MainActor func penaltySettlesNearTiesButNotBetterMatches() {
+        let ranking = Config().ranking
+        let apps = [entry("Mail", in: system), entry("Contacts", in: system, id: "com.apple.AddressBook"),
+                    entry("Mestre"), entry("Spotify", id: "com.spotify.client")]
+        func top(_ query: String) -> String? {
+            Ranker.rank(apps, query: query, limit: 8, provider: StubProvider()) { ranking.boost(for: $0, isRunning: false) }.first?.item.title
+        }
+        #expect(top("m") == "Mestre")
+        #expect(top("mai") == "Mail")
+        #expect(top("co") == "Contacts")
+    }
+}

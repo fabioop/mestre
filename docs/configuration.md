@@ -45,7 +45,7 @@ and reloads it as soon as you save it in an editor. Every key is optional.
   },
   "search": {
     "appDirectories": ["/Applications", "~/Applications"],
-    "includeSystemApps": false,
+    "includeSystemApps": true,
     "scanDepth": 2,
     "maxResults": 8,
     "watchFolders": true,
@@ -55,6 +55,7 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "usageWeight": 1,
     "showRecents": true,
     "runningBoost": 5,
+    "systemAppPenalty": 2,
     "providers": { "settings": { "bias": -200 } },
     "budgetMs": 5
   },
@@ -180,8 +181,8 @@ Settings edits this file and nothing else, so copying the `~/.config/mestre` fol
 brings everything across except macOS permissions, which that Mac has to grant again. Settings covers
 what most people change. Technical keys live only in the file: wait times and polling intervals,
 `search.scanDepth`, `search.watchFolders`, `search.refreshIntervalSeconds`, `ranking.runningBoost`,
-`ranking.providers`, `ranking.budgetMs`, `quickKeys.keys`, `clipboard.maxTextBytes`,
-`clipboard.pollIntervalSeconds`, `files.debounceSeconds`, `files.minimumLength`,
+`ranking.systemAppPenalty`, `ranking.providers`, `ranking.budgetMs`, `quickKeys.keys`,
+`clipboard.maxTextBytes`, `clipboard.pollIntervalSeconds`, `files.debounceSeconds`, `files.minimumLength`,
 `dictionary.debounceSeconds`, `bookmarks.minimumLength`, `bookmarks.penalty`, `paste`,
 `shortcuts.refreshIntervalSeconds`, `windows.listRefreshSeconds`, `emoji.prefix`, script timings and
 `needs`, `updates`, and `debug`.
@@ -361,8 +362,11 @@ Without `--default` it prints the settings in force.
   previousDisplay.
 - `calculator`: `enabled` and `precision` (significant digits). A comma followed by three
   digits is a thousands separator; otherwise it is a decimal point (`3,5*2` = 7).
-- `includeSystemApps`: off by default so results show the apps you installed, not
-  everything under /System/Applications. Turn it on to search Apple's apps too.
+- `includeSystemApps`: on by default, so Safari, Mail and the rest of /System/Applications
+  come up alongside the apps you installed. Turn it off to search only `appDirectories`.
+- `ranking.systemAppPenalty`: points taken off Apple's built-in apps, enough to settle a
+  near-tie in favour of an app you installed ("m" → Mestre before Mail) but not to bury a
+  better match. At the default `usageWeight` one launch outweighs it. 0 treats them alike.
 
 ## Themes
 

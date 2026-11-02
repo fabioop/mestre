@@ -47,5 +47,8 @@ launch), search 0.2–0.6 ms per keystroke with every provider on, index scan 21
 it), 0.0 % CPU idle. The idle figure comes from `top`: Mestre polls nothing but the clipboard
 change counter (`clipboard.pollIntervalSeconds`), which is a single integer read.
 
+Apple's built-in apps in the default scope, measured the same way (2026-11, six launches each): index
+scan 39 → 51 ms median for 26 → 92 apps, search 0.73 → 0.90 ms per keystroke.
+
 Sparkle, measured the same way (2026-10, five launches each): panel show 36 ms without it, 36 ms linked
 with no update key, 37 ms running with checks off. Search is unchanged and idle CPU stays at 0 %.

@@ -7,18 +7,32 @@ public struct AppEntry: Identifiable, Hashable, SearchItem, @unchecked Sendable 
     public let url: URL
     public let bundleIdentifier: String?
     public let icon: NSImage?
+    /// One of Apple's built-in apps: it lives under /System, not in a folder the user installs to.
+    public let isSystemApp: Bool
+    /// The bundle identifier without what nearly every app shares, which would score as a
+    /// prefix match: the "com." and, on all the built-in apps, "apple." ("ca" isn't "com.apple.Home").
+    public let keywords: [String]
+    public let id: String
+    /// The path a running copy reports. Resolved here, off the main thread, because the
+    /// running check reads it per app per keystroke.
+    public let resolvedPath: String
 
-    public var id: String { url.path }
     public var title: String { name }
     public var subtitle: String? { locationDescription }
     public var kind: ItemKind { .app }
-    public var keywords: [String] { bundleIdentifier.map { [$0] } ?? [] }
 
     public init(name: String, url: URL, bundleIdentifier: String?, icon: NSImage?) {
         self.name = name
         self.url = url
         self.bundleIdentifier = bundleIdentifier
         self.icon = icon
+        id = url.path
+        resolvedPath = url.resolvingSymlinksInPath().path
+        isSystemApp = id.hasPrefix("/System/")
+        keywords = bundleIdentifier.map { identifier in
+            let parts = identifier.split(separator: ".").dropFirst()
+            return [(parts.first == "apple" ? parts.dropFirst() : parts).joined(separator: ".")]
+        } ?? []
     }
 
     /// The name the Finder shows for an app bundle, without its extension.
