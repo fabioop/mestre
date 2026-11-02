@@ -372,6 +372,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] keepAwake in self?.viewModel.keepAwake.settings = keepAwake }
             .store(in: &cancellables)
 
+        settings.$config
+            .map(\.bluetooth)
+            .removeDuplicates()
+            .sink { [weak self] bluetooth in self?.viewModel.bluetooth.settings = bluetooth }
+            .store(in: &cancellables)
+
         // The icon is a function of two inputs; one sink gets both, whatever order they change in.
         viewModel.keepAwake.manager.$session.removeDuplicates()
             .combineLatest(settings.$config.map(\.keepAwake.menuBarIcon).removeDuplicates())

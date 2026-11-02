@@ -412,6 +412,31 @@ public struct Config: Codable, Equatable, Sendable {
         }
     }
 
+    public struct Bluetooth: Codable, Equatable, Sendable {
+        public var enabled: Bool = true
+        /// First word that lists the paired devices: "pair airpods".
+        public var keyword: String = "pair"
+        /// Close the panel once a device has connected, instead of leaving the list open.
+        public var closeOnConnect: Bool = true
+        /// How long a connection may take before the row says it failed.
+        public var connectTimeoutSeconds: Double = 30
+        /// Also list disconnected devices of no known kind, mostly an iPhone or Watch synced through iCloud.
+        public var showUnknownDevices: Bool = false
+
+        public init() {}
+
+        enum CodingKeys: String, CodingKey { case enabled, keyword, closeOnConnect, connectTimeoutSeconds, showUnknownDevices }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
+            keyword = try c.decodeKeyword(forKey: .keyword, default: keyword)
+            closeOnConnect = try c.decodeIfPresent(Bool.self, forKey: .closeOnConnect) ?? closeOnConnect
+            connectTimeoutSeconds = max(1, try c.decodeIfPresent(Double.self, forKey: .connectTimeoutSeconds) ?? connectTimeoutSeconds)
+            showUnknownDevices = try c.decodeIfPresent(Bool.self, forKey: .showUnknownDevices) ?? showUnknownDevices
+        }
+    }
+
     public struct Shortcuts: Codable, Equatable, Sendable {
         public var enabled: Bool = true
         /// Re-read the shortcut list when the panel opens and it is older than this. 0 = only at launch.
@@ -828,6 +853,7 @@ public struct Config: Codable, Equatable, Sendable {
     public var settingsPanes = SettingsPanes()
     public var processes = Processes()
     public var keepAwake = KeepAwake()
+    public var bluetooth = Bluetooth()
     public var shortcuts = Shortcuts()
     public var webSearch = WebSearch()
     public var windows = Windows()
@@ -860,7 +886,7 @@ public struct Config: Codable, Equatable, Sendable {
     }
 
     /// Every top-level section, in the file's order; `ConfigDocs` documents each one.
-    public enum CodingKeys: String, CodingKey, CaseIterable { case hotKey, hotkeys, keys, aliases, quicklinks, quickKeys, panel, home, search, ranking, calculator, commands, settingsPanes, processes, keepAwake, shortcuts, webSearch, windows, clipboard, snippets, paste, emoji, files, paths, dictionary, bookmarks, colors, scripts, startup, updates, onboarding, debug }
+    public enum CodingKeys: String, CodingKey, CaseIterable { case hotKey, hotkeys, keys, aliases, quicklinks, quickKeys, panel, home, search, ranking, calculator, commands, settingsPanes, processes, keepAwake, bluetooth, shortcuts, webSearch, windows, clipboard, snippets, paste, emoji, files, paths, dictionary, bookmarks, colors, scripts, startup, updates, onboarding, debug }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -884,6 +910,7 @@ public struct Config: Codable, Equatable, Sendable {
         settingsPanes = try c.decodeIfPresent(SettingsPanes.self, forKey: .settingsPanes) ?? SettingsPanes()
         processes = try c.decodeIfPresent(Processes.self, forKey: .processes) ?? Processes()
         keepAwake = try c.decodeIfPresent(KeepAwake.self, forKey: .keepAwake) ?? KeepAwake()
+        bluetooth = try c.decodeIfPresent(Bluetooth.self, forKey: .bluetooth) ?? Bluetooth()
         shortcuts = try c.decodeIfPresent(Shortcuts.self, forKey: .shortcuts) ?? Shortcuts()
         webSearch = try c.decodeIfPresent(WebSearch.self, forKey: .webSearch) ?? WebSearch()
         windows = try c.decodeIfPresent(Windows.self, forKey: .windows) ?? Windows()
@@ -920,6 +947,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(settingsPanes, forKey: .settingsPanes)
         try c.encode(processes, forKey: .processes)
         try c.encode(keepAwake, forKey: .keepAwake)
+        try c.encode(bluetooth, forKey: .bluetooth)
         try c.encode(shortcuts, forKey: .shortcuts)
         try c.encode(webSearch, forKey: .webSearch)
         try c.encode(windows, forKey: .windows)

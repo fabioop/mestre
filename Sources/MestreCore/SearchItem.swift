@@ -2,7 +2,7 @@ import AppKit
 
 /// What kind of thing a result is. Shown as a badge. Cases are added with each provider.
 public enum ItemKind: String, Codable, CaseIterable, Sendable {
-    case app, calculator, command, settings, process, shortcut, quicklink, web, window, clipboard, snippet, emoji, file, definition, bookmark, color, keepAwake, feature, script
+    case app, calculator, command, settings, process, shortcut, quicklink, web, window, clipboard, snippet, emoji, file, definition, bookmark, color, keepAwake, bluetooth, feature, script
 
     public var label: String {
         switch self {
@@ -23,6 +23,7 @@ public enum ItemKind: String, Codable, CaseIterable, Sendable {
         case .bookmark: return "Bookmark"
         case .color: return "Color"
         case .keepAwake: return "Keep Awake"
+        case .bluetooth: return "Bluetooth"
         case .feature: return "Feature"
         case .script: return "Script"
         }
@@ -35,7 +36,7 @@ public enum ItemKind: String, Codable, CaseIterable, Sendable {
         case .app, .file, .settings, .shortcut, .window, .bookmark, .web, .quicklink, .definition:
             return .metadata
         // The second line is the answer, the grammar, or what the user would read anyway.
-        case .calculator, .color, .command, .process, .clipboard, .snippet, .emoji, .keepAwake, .feature, .script:
+        case .calculator, .color, .command, .process, .clipboard, .snippet, .emoji, .keepAwake, .bluetooth, .feature, .script:
             return .content
         }
     }

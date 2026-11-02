@@ -23,6 +23,7 @@ public enum ConfigDocs {
         case .settingsPanes: return "System Settings panes as results."
         case .processes: return "kill <name>: running processes by memory."
         case .keepAwake: return "awake 45m / until 18:30: keep the Mac awake."
+        case .bluetooth: return "pair <name>: connect or disconnect paired Bluetooth devices."
         case .shortcuts: return "Apple Shortcuts as results."
         case .webSearch: return "The engine behind \"Search the web for…\"."
         case .windows: return "Window layouts (halves, thirds, quarters) and their hotkeys."

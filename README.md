@@ -33,6 +33,7 @@ Press **⌥ Space** and type.
 | Colour conversion | `#ff8800` |
 | Keep awake | `awake 45m` |
 | Kill a process | `kill chrome` |
+| Connect Bluetooth devices | `pair airpods` |
 | Apple Shortcuts | a shortcut's name |
 | Your own scripts | a keyword you choose |
 | Themes | `panel.theme`, or Settings › Appearance |
