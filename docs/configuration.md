@@ -85,6 +85,13 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "endWhenBatteryBelow": 0,
     "menuBarIcon": true
   },
+  "bluetooth": {
+    "enabled": true,
+    "keyword": "pair",
+    "closeOnConnect": true,
+    "connectTimeoutSeconds": 30,
+    "showUnknownDevices": false
+  },
   "shortcuts": {
     "enabled": true,
     "refreshIntervalSeconds": 300
@@ -214,7 +221,7 @@ Without `--default` it prints the settings in force.
   `window:<layout>`, or `feature:<id>`. An app opens or comes forward without showing the panel;
   `feature:<id>` opens the panel on that feature and closes it when pressed again, e.g.
   `"hyper+v": "feature:clipboard"`. Feature ids: `clipboard`, `emoji`, `files`, `paths`,
-  `bookmarks`, `dictionary`, `keepAwake`, `processes`, `colors`, `windows`. Shortcuts another
+  `bookmarks`, `dictionary`, `keepAwake`, `bluetooth`, `processes`, `colors`, `windows`. Shortcuts another
   app already owns are reported in Settings.
 - `keys`: overrides for what each key does inside the panel, in the same combo format as
   `hotKey`, e.g. `"keys": {"moveUp": ["up", "ctrl+k"], "quit": "cmd+w"}`. Names come from one
@@ -310,6 +317,14 @@ Without `--default` it prints the settings in force.
 - `processes`: `enabled` and the trigger `keyword` (one word, default `kill`). While the
   query starts with the keyword only processes are listed: those you can signal, biggest
   physical footprint first (the number Activity Monitor shows).
+- `bluetooth`: `enabled` and the trigger `keyword` (one word, default `pair`). While the query
+  starts with the keyword only the devices this Mac is paired with are listed: devices to connect
+  first, audio before the rest and then the one Mestre connected most recently, connected ones last,
+  so the keyword and Return can't disconnect the keyboard in use. `showUnknownDevices` also lists
+  disconnected devices of no known kind, mostly an iPhone, Watch or Mac synced through iCloud. Return connects or disconnects; a device never paired goes through "Pair a New
+  Device…", which opens Bluetooth settings. `closeOnConnect` closes the panel once connected and
+  `connectTimeoutSeconds` is how long a connection may take before the row says it failed (at least 1).
+  macOS asks for Bluetooth access the first time the keyword is typed, and not before.
 - `shortcuts`: `enabled` and `refreshIntervalSeconds`, how old the list may be when the panel
   opens before it is re-read (0 = only at launch). Uses the `shortcuts` command line tool.
 - `webSearch`: `enabled` and `engine`, a URL with `{query}` (e.g. `https://www.google.com/search?q={query}`).

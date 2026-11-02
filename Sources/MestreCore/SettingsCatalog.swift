@@ -27,7 +27,7 @@ public enum SettingsLibrary: String, CaseIterable, Sendable {
 
 public enum SettingsFeature: String, CaseIterable, Sendable {
     case clipboard, snippets, calculator, emoji, files, folders, dictionary, bookmarks, colours
-    case commands, systemSettings, processes, keepAwake, appleShortcuts, web, windows
+    case commands, systemSettings, processes, keepAwake, bluetooth, appleShortcuts, web, windows
 
     public var title: String {
         switch self {
@@ -55,6 +55,7 @@ public enum SettingsFeature: String, CaseIterable, Sendable {
         case .systemSettings: return "Open panes like Bluetooth by name"
         case .processes: return "Quit running processes"
         case .keepAwake: return "Stop the Mac from sleeping"
+        case .bluetooth: return "Connect AirPods and other paired devices"
         case .appleShortcuts: return "Run your shortcuts"
         case .web: return "Open addresses and search the web"
         case .windows: return "Move windows and switch between them"
@@ -77,6 +78,7 @@ public enum SettingsFeature: String, CaseIterable, Sendable {
         case .systemSettings: return "slider.horizontal.3"
         case .processes: return "xmark.octagon"
         case .keepAwake: return "cup.and.saucer"
+        case .bluetooth: return "airpodspro"
         case .appleShortcuts: return "square.2.layers.3d"
         case .web: return "globe"
         case .windows: return "macwindow.on.rectangle"
@@ -98,6 +100,7 @@ public enum SettingsFeature: String, CaseIterable, Sendable {
         case .systemSettings: return \.settingsPanes.enabled
         case .processes: return \.processes.enabled
         case .keepAwake: return \.keepAwake.enabled
+        case .bluetooth: return \.bluetooth.enabled
         case .appleShortcuts: return \.shortcuts.enabled
         case .web: return \.webSearch.enabled
         case .windows: return \.windows.enabled
@@ -260,6 +263,8 @@ public enum SettingsCatalog {
         option(.keepAwake, "awake.apps", "Stay awake while these apps run", "trigger"),
         option(.keepAwake, "awake.charging", "Stay awake while charging", "power trigger"),
         option(.keepAwake, "awake.battery", "End when battery is low", "power"),
+        option(.bluetooth, "bluetooth.keyword", "Bluetooth keyword", "pair airpods"),
+        option(.bluetooth, "bluetooth.close", "Close the panel once connected", "airpods"),
         option(.web, "web.engine", "Search engine", "google duckduckgo kagi bing"),
         option(.windows, "windows.gap", "Gap between windows", "spacing margin"),
         option(.windows, "windows.list", "Open windows as results", "switch"),
@@ -397,6 +402,7 @@ public extension Config {
             result.settingsPanes = defaults.settingsPanes
             result.processes = defaults.processes
             result.keepAwake = defaults.keepAwake
+            result.bluetooth = defaults.bluetooth
             result.shortcuts = defaults.shortcuts
             result.webSearch = defaults.webSearch
             result.windows = defaults.windows

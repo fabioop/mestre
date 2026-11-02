@@ -172,6 +172,7 @@ final class SearchViewModel: ObservableObject {
     let settingsPanes = SettingsPaneProvider()
     let processes = ProcessProvider()
     let keepAwake = KeepAwakeProvider()
+    let bluetooth = BluetoothProvider()
     let homeScreen = HomeProvider()
     let shortcuts = ShortcutsProvider()
     let quicklinks = QuicklinkProvider()
@@ -194,7 +195,7 @@ final class SearchViewModel: ObservableObject {
     var onDismiss: (() -> Void)?
 
     init() {
-        providers = [calculator, colors, processes, keepAwake, clipboard, emoji, files, paths, dictionary, bookmarks, scripts, quicklinks, snippets, apps, openWindows, commands, windows, settingsPanes, shortcuts, web, homeScreen]
+        providers = [calculator, colors, processes, keepAwake, bluetooth, clipboard, emoji, files, paths, dictionary, bookmarks, scripts, quicklinks, snippets, apps, openWindows, commands, windows, settingsPanes, shortcuts, web, homeScreen]
         snippets.paster = clipboard.paster
         emoji.paster = clipboard.paster
         for provider in providers {

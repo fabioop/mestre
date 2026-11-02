@@ -69,6 +69,9 @@ struct FeaturesPage: View {
         case .systemSettings: PaneOptions(settings: settings, panes: viewModel.settingsPanes.panes)
         case .processes: KeywordField(label: "Keyword", value: $settings.config.processes.keyword, placeholder: "kill").setting("processes.keyword")
         case .keepAwake: KeepAwakeOptions(settings: settings, manager: viewModel.keepAwake.manager, apps: viewModel.apps.index)
+        case .bluetooth:
+            KeywordField(label: "Keyword", value: $settings.config.bluetooth.keyword, placeholder: "pair").setting("bluetooth.keyword")
+            Toggle("Close the panel once connected", isOn: $settings.config.bluetooth.closeOnConnect).setting("bluetooth.close")
         case .appleShortcuts: EmptyView()
         case .web: WebOptions(settings: settings)
         case .windows: WindowOptions(settings: settings)
