@@ -202,7 +202,8 @@ whatever macOS has now.
 
 `updates` controls in-app updates. `check` looks for a new version every `intervalHours` (at least 1),
 which is one request to GitHub; with it off, Check for Updates… in the menu bar still works. `channel`
-is `stable` or `beta`, and `beta` also offers pre-releases. `feedURL` replaces the built-in update feed.
+is `stable` or `beta`, and `beta` also offers pre-releases. `feedURL` replaces the built-in update feed;
+it must be `https`, and release builds only accept a feed signed with Mestre's update key.
 Builds you make yourself have no update key, so they never check.
 
 First launch writes a file of notes only, so every key keeps its default until you set it; the
@@ -334,7 +335,8 @@ Without `--default` it prints the settings in force.
 - `clipboard`: `enabled`, `keyword`, `maxItems`, `maxAgeDays` (0 = no expiry), `maxTextBytes`,
   `pollIntervalSeconds` (the pasteboard has no change notification, so its change counter is
   read this often) and `excludeApps` (bundle identifiers; the defaults
-  cover common password managers; contents marked concealed or transient are never kept).
+  cover common password managers; contents marked concealed or transient are never kept, and a
+  snippet's `{clipboard}` is left empty for them, except for Mestre's own last paste).
   History is stored in plain text, owner-only, under
   `~/Library/Application Support/Mestre/Clipboard`; images as PNG files named by content hash.
 - `snippets`: `enabled`, `items` (`{name, text, keyword}`), `dateFormat`, `timeFormat`.
@@ -345,10 +347,11 @@ Without `--default` it prints the settings in force.
   punctuation) through a listen-only keyboard event tap. It needs Input Monitoring as well
   as Accessibility; only the last few typed characters are held in memory, nothing is
   stored; input methods (Japanese, Chinese…) are left alone; `expansion.excludeApps` lists
-  bundle identifiers to skip. Avoid keywords that are prefixes of other keywords.
+  bundle identifiers to skip (by default the common terminals, where an expansion is a pasted command). Avoid keywords that are prefixes of other keywords.
 - `paste`: `delaySeconds` between closing the panel and ⌘V, `cursorDelaySeconds` between ⌘V
   and moving the caret to `{cursor}` (slow apps need more). Pasting replaces what was on the
-  pasteboard, after recording it in the history.
+  pasteboard, after recording it in the history; the pasted text is marked transient, so other
+  clipboard managers skip it, and nothing is pasted if another app came to the front meanwhile.
 - `emoji`: `enabled`, `keyword`, `prefix` (`":"`; empty disables the shorthand; while the
   query starts with it only emoji are listed) and `recentCount`. The list is bundled (Unicode names plus common aliases); skin-tone variants
   and most flags are not included yet.

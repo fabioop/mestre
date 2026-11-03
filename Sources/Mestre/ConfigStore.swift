@@ -102,6 +102,9 @@ final class ConfigStore: ObservableObject {
             write(Data(starter.utf8))
         }
         // The file is written only when a setting changes: a key that is missing keeps its default.
+        // A file from an older build is 0644; make it owner-only now, off the main thread.
+        let target = Self.writeTarget(of: fileURL)
+        Task.detached(priority: .utility) { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path) }
         rebuildKeyBindings()
         hotkeyTable = HotkeyTable(hotkeys: config.hotkeys, defaults: config.hotkeyDefaults, panelHotKey: config.hotKey)
         startWatching()
@@ -159,8 +162,9 @@ final class ConfigStore: ObservableObject {
     @discardableResult
     private func write(_ data: Data) -> Bool {
         do {
-            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try data.write(to: Self.writeTarget(of: fileURL), options: .atomic)
+            // Owner-only: snippets can hold addresses and tokens, and other accounts can reach ~/.config.
+            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try AppSupport.writePrivately(data, to: Self.writeTarget(of: fileURL))
             return true
         } catch {
             NSLog("Config: failed to write %@: %@", fileURL.path, error.localizedDescription)
@@ -194,7 +198,7 @@ final class ConfigStore: ObservableObject {
             let file = Self.writeTarget(of: link)
             try? manager.removeItem(at: backup)
             guard manager.fileExists(atPath: file.path) else { return false }
-            try manager.copyItem(at: file, to: backup)
+            try AppSupport.writePrivately(Data(contentsOf: file), to: backup)
             return true
         }.value
         loadError = nil
@@ -209,7 +213,7 @@ final class ConfigStore: ObservableObject {
         let (link, backup) = (fileURL, backupURL)
         resetUndo = nil
         try await Task.detached {
-            try Data(contentsOf: backup).write(to: Self.writeTarget(of: link), options: .atomic)
+            try AppSupport.writePrivately(Data(contentsOf: backup), to: Self.writeTarget(of: link))
             try FileManager.default.removeItem(at: backup)
         }.value
     }

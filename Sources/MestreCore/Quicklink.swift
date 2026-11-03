@@ -36,6 +36,13 @@ public struct Quicklink: Codable, Equatable, Sendable, Identifiable {
         return hasScheme ? trimmed : "https://" + trimmed
     }
 
+    /// A web page or a mail draft. Anything else (a file, another app's scheme, `smb://`) runs
+    /// something on this Mac, which an import shouldn't add without the user writing it.
+    public var isWebLink: Bool {
+        guard let scheme = url.range(of: ":").map({ url[..<$0.lowerBound].lowercased() }) else { return false }
+        return ["http", "https", "mailto"].contains(scheme)
+    }
+
     /// What the search field should contain to run this link with a query.
     public var completionPrefix: String { (keyword ?? name) + " " }
 

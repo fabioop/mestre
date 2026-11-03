@@ -58,6 +58,11 @@ public struct ClipboardEntry: Codable, Equatable, Sendable, Identifiable {
     public static func imageName(for data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() + ".png"
     }
+
+    /// True for a name `imageName(for:)` could have made, so an edited history can't name another file.
+    public static func isImageName(_ name: String) -> Bool {
+        name.range(of: #"^[0-9a-f]{64}\.png$"#, options: .regularExpression) != nil
+    }
 }
 
 /// Clipboard history, newest first, bounded. Pure data: the pasteboard watcher and

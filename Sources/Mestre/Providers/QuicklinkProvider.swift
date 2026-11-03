@@ -83,7 +83,8 @@ final class QuicklinkProvider: ResultProvider {
         case "open":
             guard let url = item.resolved else { NSSound.beep(); return }
             dismiss?()
-            if !NSWorkspace.shared.open(url) { NSLog("Quicklink %@: could not open %@", item.link.name, url.absoluteString) }
+            // The URL holds what was typed, which stays out of the system log.
+            if !NSWorkspace.shared.open(url) { NSLog("Quicklink %@: could not open it", item.link.name) }
         case "copyURL":
             guard let url = item.resolved else { NSSound.beep(); return }
             url.absoluteString.copyToPasteboard(toast: "URL copied")

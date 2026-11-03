@@ -64,11 +64,22 @@ import Testing
           <key>connections</key><dict><key>H</key><array><dict><key>destinationuid</key><string>L</string></dict></array></dict>
         </dict></plist>
         """
-        let result = try AlfredImport.workflowHotkeys(from: Data(plist.utf8))
+        let result = try AlfredImport.workflowHotkeys(from: Data(plist.utf8), appExists: { _ in true })
         #expect(result.hotkeys == ["hyper+t": "Terminal"])
         #expect(result.warnings.isEmpty)
         let disabled = plist.replacingOccurrences(of: "<key>objects</key>", with: "<key>disabled</key><true/><key>objects</key>")
-        #expect(try AlfredImport.workflowHotkeys(from: Data(disabled.utf8)).hotkeys.isEmpty)
+        #expect(try AlfredImport.workflowHotkeys(from: Data(disabled.utf8), appExists: { _ in true }).hotkeys.isEmpty)
+        // A missing app would fall through to a command of the same name.
+        let missing = try AlfredImport.workflowHotkeys(from: Data(plist.utf8), appExists: { _ in false })
+        #expect(missing.hotkeys.isEmpty)
+        #expect(missing.warnings.count == 1)
+    }
+
+    @Test func onlyWebQuicklinksAreImported() throws {
+        let json = #"[{"name": "Docs", "link": "https://example.com"}, {"name": "Share", "link": "smb://example.com/x"}, {"name": "Script", "link": "/Users/Shared/x.command"}, {"name": "Mail", "link": "mailto:a@b.c"}]"#
+        let result = try RaycastImport.parse(Data(json.utf8))
+        #expect(result.quicklinks.map(\.name) == ["Docs", "Mail"])
+        #expect(result.warnings.count == 2)
     }
 
     @Test func namedDateStylesBecomePlainPlaceholders() {

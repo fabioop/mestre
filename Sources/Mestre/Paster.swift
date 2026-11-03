@@ -20,7 +20,7 @@ final class Paster {
     /// follow, for a snippet's `{cursor}`.
     func paste(_ text: String, caretMoves: Int = 0, dismiss: (() -> Void)?) {
         clipboard.captureNow()
-        clipboard.write(text)
+        clipboard.write(text, transient: true)
         dismiss?()
         sendPaste(caretMoves: caretMoves)
     }
@@ -43,11 +43,19 @@ final class Paster {
         guard Self.canPaste, let keyCode = KeyCodeMap.current()["v"] else { return }
         let delay = settings.delaySeconds
         let caretDelay = settings.cursorDelaySeconds
+        // The panel never activates, so the app in front now is the one the text is for. If another
+        // window takes over during the delay (a chat, a dialog), it doesn't get the paste.
+        // Quick Look activates Mestre itself; then the target is whoever comes back, as before.
+        let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let target = front == ProcessInfo.processInfo.processIdentifier ? nil : front
+        let stillTarget = { target == nil || NSWorkspace.shared.frontmostApplication?.processIdentifier == target }
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            guard stillTarget() else { return }
             Self.press(CGKeyCode(keyCode), flags: .maskCommand)
             guard caretMoves > 0 else { return }
             // The paste has to land before the caret moves; slow apps need a longer cursorDelaySeconds.
             DispatchQueue.main.asyncAfter(deadline: .now() + caretDelay) {
+                guard stillTarget() else { return }
                 for _ in 0..<caretMoves { Self.press(CGKeyCode(kVK_LeftArrow), flags: []) }
             }
         }
