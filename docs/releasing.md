@@ -147,10 +147,12 @@ brew install --cask fabioop/tap/mestre
 
 ## Limits
 
-- Self-signed releases run without the hardened runtime, so malware already on a Mac could inject code
-  into Mestre and use its permissions. macOS refuses to load Sparkle under that runtime without an Apple
-  team ID, and `v0.1.0-beta.4` didn't launch because of it. A Developer ID fixes this. CI can't catch
-  it: the same kind of build launched fine there, probably because its machines don't enforce library validation.
+- Self-signed releases run with the hardened runtime, so `DYLD_INSERT_LIBRARIES` can't load code into
+  Mestre and borrow its permissions. Library validation is off in those builds
+  (`com.apple.security.cs.disable-library-validation`): it only loads frameworks signed by the same Apple
+  team, a self-signed certificate has none, and `v0.1.0-beta.4` didn't launch because Sparkle was refused.
+  A Developer ID build keeps library validation on. CI can't catch a launch failure here, since its
+  machines don't seem to enforce library validation, so launch a self-signed build on a real Mac first.
 - Releases are Apple silicon only, since `swift build` makes a single-architecture binary here.
 - Mestre is a menu-bar app, and it doesn't use Sparkle's gentle reminders yet, so Sparkle logs a warning
   about scheduled update prompts. The prompt window may open behind other apps.

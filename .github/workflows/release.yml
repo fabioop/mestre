@@ -22,9 +22,12 @@ jobs:
       HAS_SPARKLE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
       HAS_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          # The token stays out of .git/config while tests and the build run; the steps that push
+          # sign in with gh instead.
+          persist-credentials: false
 
       - name: Check the tag and the update keys
         env:
@@ -115,7 +118,9 @@ jobs:
         if: env.HAS_SPARKLE_KEY == 'true'
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          gh auth setup-git
           zip="Mestre-$VERSION.zip"
           signature="$(printf '%s' "$SPARKLE_PRIVATE_KEY" | .build/artifacts/sparkle/Sparkle/bin/sign_update --ed-key-file - -p "$zip")"
           git config user.name "github-actions[bot]"
@@ -132,6 +137,8 @@ jobs:
             --length "$(stat -f%z "$zip")" --signature "$signature" \
             --min-os "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' Resources/Info.plist)" \
             --notes-file notes.md
+          # Builds require a signed feed (SURequireSignedFeed); the signature goes inside the file.
+          printf '%s' "$SPARKLE_PRIVATE_KEY" | .build/artifacts/sparkle/Sparkle/bin/sign_update --ed-key-file - "$RUNNER_TEMP/appcast/appcast.xml"
           git -C "$RUNNER_TEMP/appcast" add appcast.xml
           if ! git -C "$RUNNER_TEMP/appcast" diff --cached --quiet; then
             git -C "$RUNNER_TEMP/appcast" commit -m "chore(appcast): add $VERSION"
@@ -141,10 +148,12 @@ jobs:
       - name: Update the Homebrew cask
         if: env.HAS_TAP_TOKEN == 'true' && !contains(github.ref_name, '-')
         env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          # gh's git credential helper reads this token, so it never lands in the clone's .git/config.
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
+          gh auth setup-git
           tap="$RUNNER_TEMP/tap"
-          git clone "https://x-access-token:$HOMEBREW_TAP_TOKEN@github.com/${GITHUB_REPOSITORY_OWNER}/homebrew-tap.git" "$tap"
+          git clone "https://github.com/${GITHUB_REPOSITORY_OWNER}/homebrew-tap.git" "$tap"
           mkdir -p "$tap/Casks"
           sha="$(shasum -a 256 "Mestre-$VERSION.zip" | cut -d' ' -f1)"
           sed -e "s/@VERSION@/$VERSION/g" -e "s/@SHA256@/$sha/g" packaging/mestre.rb.in > "$tap/Casks/mestre.rb"

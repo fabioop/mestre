@@ -25,7 +25,10 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 PLIST="$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" -c "Set :CFBundleVersion $BUILD" "$PLIST"
 if [ -n "${MESTRE_SPARKLE_PUBLIC_KEY:-}" ]; then
-  /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string $MESTRE_SPARKLE_PUBLIC_KEY" "$PLIST"
+  # The appcast is signed too, so a feed from anywhere else (the config's feedURL, a pushed
+  # appcast branch) can't offer builds or show notes; the archive is checked before it's unpacked.
+  /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string $MESTRE_SPARKLE_PUBLIC_KEY" \
+    -c "Add :SURequireSignedFeed bool true" -c "Add :SUVerifyUpdateBeforeExtraction bool true" "$PLIST"
 fi
 ditto ".build/$CONFIG/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
 cp LICENSE "$APP/Contents/Resources/LICENSE"
@@ -43,17 +46,24 @@ fi
 
 # Sign inside out: Sparkle's helpers, its framework, then the app.
 # An ad-hoc identity is only a fingerprint of the build, so macOS drops permissions like
-# Accessibility on every rebuild. A certificate keeps them across builds. Only a Developer ID build
-# gets the hardened runtime: it would refuse to load Sparkle under a certificate with no team, and
-# it blocks Apple events unless the entitlement allows them.
-SIGN=(codesign --force --sign "$IDENTITY")
-APP_FLAGS=()
+# Accessibility on every rebuild. A certificate keeps them across builds. Every build gets the
+# hardened runtime, which ignores DYLD_INSERT_LIBRARIES: without it any process could load code into
+# Mestre and use its permissions. The runtime's library validation only loads frameworks signed by
+# the same team, and a self-signed or ad-hoc certificate has none, so those builds turn it off to
+# load Sparkle. DYLD_* variables stay ignored either way.
+ENTITLEMENTS=Resources/Mestre.entitlements
+SIGN=(codesign --force --sign "$IDENTITY" --options runtime)
 case "$IDENTITY" in
   "Developer ID"*)
-    SIGN+=(--options runtime --timestamp)
-    APP_FLAGS=(--entitlements Resources/Mestre.entitlements)
+    SIGN+=(--timestamp)
+    ;;
+  *)
+    ENTITLEMENTS="build/Mestre.entitlements"
+    cp Resources/Mestre.entitlements "$ENTITLEMENTS"
+    /usr/libexec/PlistBuddy -c "Add :com.apple.security.cs.disable-library-validation bool true" "$ENTITLEMENTS"
     ;;
 esac
+APP_FLAGS=(--entitlements "$ENTITLEMENTS")
 sign() { "${SIGN[@]}" "$@"; }
 SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
 sign "$SPARKLE/XPCServices/Installer.xpc"

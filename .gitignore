@@ -3,5 +3,4 @@ build/
 .swiftpm/
 *.xcodeproj
 .DS_Store
-demo/node_modules/
-demo/out/
+demo/
