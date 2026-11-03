@@ -10,12 +10,12 @@
   },
   "dependencies": {
     "@react-three/fiber": "9.1.2",
-    "@remotion/cli": "4.0.539",
-    "@remotion/three": "4.0.539",
+    "@remotion/cli": "4.0.540",
+    "@remotion/three": "4.0.540",
     "lucide-react": "0.511.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "remotion": "4.0.539",
+    "remotion": "4.0.540",
     "three": "0.170.0"
   },
   "devDependencies": {
