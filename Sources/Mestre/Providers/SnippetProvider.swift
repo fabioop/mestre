@@ -42,7 +42,7 @@ final class SnippetProvider: ResultProvider {
         // A password manager's copy stays where it was put: pasting it inside a snippet would put
         // it back on the pasteboard unmarked, where clipboard managers record it.
         let pasteboard = NSPasteboard.general
-        let concealed = (pasteboard.types ?? []).contains { ClipboardMonitor.concealedTypes.contains($0.rawValue) }
+        let concealed = (pasteboard.types ?? []).contains { ClipboardMonitor.secretTypes.contains($0.rawValue) }
         let clipboard = concealed ? "" : pasteboard.string(forType: .string) ?? ""
         return SnippetExpander.expand(snippet.text, clipboard: clipboard, dateFormat: settings.dateFormat, timeFormat: settings.timeFormat)
     }

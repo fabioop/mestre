@@ -336,7 +336,7 @@ Without `--default` it prints the settings in force.
   `pollIntervalSeconds` (the pasteboard has no change notification, so its change counter is
   read this often) and `excludeApps` (bundle identifiers; the defaults
   cover common password managers; contents marked concealed or transient are never kept, and a
-  snippet's `{clipboard}` is left empty for them).
+  snippet's `{clipboard}` is left empty for concealed ones, such as a password manager's copy).
   History is stored in plain text, owner-only, under
   `~/Library/Application Support/Mestre/Clipboard`; images as PNG files named by content hash.
 - `snippets`: `enabled`, `items` (`{name, text, keyword}`), `dateFormat`, `timeFormat`.

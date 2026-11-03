@@ -140,6 +140,10 @@ final class ClipboardMonitor {
         "com.typeit4me.clipping", "net.antelle.keeweb",
     ]
 
+    /// The markers that mean a secret, not only "don't keep this". A snippet's `{clipboard}` skips
+    /// these; transient copies, Mestre's own pastes among them, still fill it.
+    nonisolated static let secretTypes: Set<String> = ["org.nspasteboard.ConcealedType", "com.agilebits.onepassword", "net.antelle.keeweb"]
+
     /// Reads the pasteboard on the main thread (required), then does any heavy work off it.
     private func capture(from pasteboard: NSPasteboard, source: String?) {
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
