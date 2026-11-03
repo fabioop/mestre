@@ -135,14 +135,14 @@ final class ConfigStore: ObservableObject {
         case success(Config, notes: [String: Any]), failure(Error), missing
     }
 
-    /// The file's `_…` keys, kept so a save writes them back above the settings.
+    /// The file's `_…` keys and sections this build doesn't know, kept so a save writes them back.
     private var notes: [String: Any] = [:]
 
     private static func read(from url: URL) -> ReadResult {
         guard FileManager.default.fileExists(atPath: url.path) else { return .missing }
         do {
             let data = try Data(contentsOf: url)
-            let notes = ((try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]).filter { $0.key.hasPrefix("_") }
+            let notes = ConfigDocs.notes(in: (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:])
             return .success(try JSONDecoder().decode(Config.self, from: data), notes: notes)
         } catch {
             return .failure(error)

@@ -87,7 +87,13 @@ final class TranslatorProvider: ResultProvider {
 
     func results(for query: Query, limit: Int) -> [ScoredItem] {
         guard owns(query) else { return [] }
-        switch state(of: query) {
+        let state = state(of: query)
+        // Back on an answered input: a translation still running for another one would replace it.
+        if case .answered(let input, _, _) = state, running?.input != input {
+            running?.task.cancel()
+            running = nil
+        }
+        switch state {
         case .nothingYet, .tooLong:
             queryLeft()
             return []

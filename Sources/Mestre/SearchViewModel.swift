@@ -209,7 +209,8 @@ final class SearchViewModel: ObservableObject {
     var onDismiss: (() -> Void)?
 
     init() {
-        providers = [calculator, colors, processes, keepAwake, bluetooth, clipboard, emoji, files, paths, dictionary, calendar, translator, bookmarks, quicklinks, snippets, apps, openWindows, commands, windows, settingsPanes, shortcuts, web, homeScreen]
+        // Quicklinks before calendar and translator: a quicklink the user gave "tr" or "cal" keeps it.
+        providers = [calculator, colors, processes, keepAwake, bluetooth, clipboard, emoji, files, paths, dictionary, quicklinks, calendar, translator, bookmarks, snippets, apps, openWindows, commands, windows, settingsPanes, shortcuts, web, homeScreen]
         snippets.paster = clipboard.paster
         emoji.paster = clipboard.paster
         for provider in providers {
@@ -251,7 +252,8 @@ final class SearchViewModel: ObservableObject {
             if merged.count > maxResults { merged.remove(at: max(0, merged.count - 1 - fallback.count)) }
             return merged
         }
-        let card = results.first.flatMap { dictionary.card(for: $0.item) }
+        // Cards only for "define …": a pasted word's rows sit above the others, which stay in sight.
+        let card = owner === dictionary ? results.first.flatMap { dictionary.card(for: $0.item) } : nil
         if card != definitionCard { definitionCard = card }
         selectedIndex = keepSelection ? min(selectedIndex, max(0, results.count - 1)) : 0
         // A background refresh keeps the menu open as long as it still shows the same item.

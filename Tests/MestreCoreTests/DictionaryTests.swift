@@ -34,6 +34,15 @@ import Testing
         #expect(DictionaryEntry.parse("no pipes here") == nil)
     }
 
+    @Test func cardsKeepToTheFirstPartOfSpeechAndTheWholeHeadword() throws {
+        let kiss = "kiss | kɪs | verb [with object] 1 touch with the lips: she kissed him. 2 Billiards lightly touch in passing. noun 1 a touch with the lips: a quick kiss. 2 a small cake."
+        let entry = try #require(DictionaryEntry.parse(kiss))
+        #expect(entry.partOfSpeech == "verb")
+        #expect(entry.senses.map(\.text) == ["Touch with the lips", "Billiards lightly touch in passing"])
+        #expect(DictionaryEntry.parse("ice cream | ˌīs ˈkrēm | noun a soft frozen food.")?.headword == "ice cream")
+        #expect(DictionaryEntry.parse("serendipity ser·en·dip·i·ty | ˌserənˈdipədē | noun luck.")?.headword == "serendipity")
+    }
+
     @Test func readsTheRealDictionary() throws {
         let text = try #require(WordLookup.definition(of: "serendipity"))
         let entry = try #require(DictionaryEntry.parse(text))

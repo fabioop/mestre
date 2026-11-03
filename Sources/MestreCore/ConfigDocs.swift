@@ -73,10 +73,17 @@ public enum ConfigDocs {
         diff(try object(config), defaultsObject)
     }
 
-    /// `changes` as the file: `notes` (the `_…` keys of the existing file) first, then each
-    /// changed section in the file's order.
+    /// `changes` as the file: `notes` (see `notes(in:)`) first, then each changed section in
+    /// the file's order.
     public static func file(changes: [String: Any], notes: [String: Any]) -> String {
         render(changes, notes: notes)
+    }
+
+    /// What a save must carry over from the existing file: the `_…` notes, and any top-level
+    /// section this build doesn't know (one a later version added, or one that was removed,
+    /// like `scripts`), so writing a setting never deletes what the user wrote there.
+    public static func notes(in file: [String: Any]) -> [String: Any] {
+        file.filter { $0.key.hasPrefix("_") || Config.CodingKeys(rawValue: $0.key) == nil }
     }
 
     static func object(_ config: Config) throws -> [String: Any] {
@@ -100,7 +107,7 @@ public enum ConfigDocs {
     /// Notes first, then each section in `Config.CodingKeys` order, each on its own lines.
     private static func render(_ sections: [String: Any], notes: [String: Any] = [:], docs: Bool = false) -> String {
         var lines: [String] = []
-        for (key, value) in notes.sorted(by: { $0.key < $1.key }) where key.hasPrefix("_") {
+        for (key, value) in notes.sorted(by: { $0.key < $1.key }) where Config.CodingKeys(rawValue: key) == nil {
             lines.append("  \"\(key)\": " + json(value) + ",")
         }
         for key in Config.CodingKeys.allCases {

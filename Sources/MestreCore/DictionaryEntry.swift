@@ -29,7 +29,9 @@ public struct DictionaryEntry: Equatable, Sendable {
         let pipes = text.indices.filter { text[$0] == "|" }
         guard pipes.count >= 2 else { return nil }
         let head = text[..<pipes[0]].split(separator: " ").map(String.init)
-        guard let headword = head.first else { return nil }
+        // "serendipity ser·en·dip·i·ty", "ice cream": the words without syllable dots.
+        guard !head.isEmpty else { return nil }
+        let headword = head.filter { !$0.contains("·") }.joined(separator: " ").nilIfEmpty ?? head[0]
         let syllables = head.dropFirst().first { $0.contains("·") }
         let pronunciation = text[text.index(after: pipes[0])..<pipes[1]].trimmingCharacters(in: .whitespaces)
         var body = String(text[text.index(after: pipes[1])...]).trimmingCharacters(in: .whitespaces)
@@ -48,6 +50,10 @@ public struct DictionaryEntry: Equatable, Sendable {
             body = String(body.dropFirst(first.count))
         }
         body = dropLeadingGroups(body)
+        // "… in passing. noun 1 a touch …": the cards show the first part of speech only.
+        if let next = partsOfSpeech.compactMap({ body.range(of: ". \($0) ") }).min(by: { $0.lowerBound < $1.lowerBound }) {
+            body = String(body[...next.lowerBound])
+        }
 
         let senses = numberedSenses(body).compactMap(sense).prefix(maxSenses)
         guard !senses.isEmpty else { return nil }
@@ -66,7 +72,8 @@ public struct DictionaryEntry: Equatable, Sendable {
 
     /// Splits at " 2 ", " 3 "… in order, so a number inside a sense ("42 marathons") isn't a cut.
     private static func numberedSenses(_ body: String) -> [String] {
-        var text = Substring(body)
+        // "[no object] 1 move…": the label comes off with the number, as sense() drops labels anyway.
+        var text = Substring(withoutLabels(body))
         if text.hasPrefix("1 ") { text = text.dropFirst(2) }
         var senses: [String] = []
         var next = 2

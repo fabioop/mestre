@@ -22,7 +22,9 @@ enum EditShortcut {
 
     static func action(for event: NSEvent) -> Selector? {
         let modifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
-        guard let key = event.charactersIgnoringModifiers?.lowercased() else { return nil }
+        // `characters` goes through the layout's ⌘ table, which is Latin on Russian, Greek or Hebrew
+        // layouts and QWERTY on "Dvorak – QWERTY ⌘"; charactersIgnoringModifiers would give "м" for ⌘V.
+        guard let key = event.characters?.lowercased() else { return nil }
         return entries.first { $0.key == key && $0.modifiers == modifiers }?.action
     }
 

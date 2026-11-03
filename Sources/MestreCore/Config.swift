@@ -586,7 +586,7 @@ public struct Config: Codable, Equatable, Sendable {
         /// there is a pasted command, and shared or imported snippets shouldn't get to type one.
         public var excludeApps: [String] = [
             "com.apple.Terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty", "dev.warp.Warp-Stable",
-            "com.github.wez.wezterm", "net.kovidgoyal.kitty", "io.alacritty",
+            "com.github.wez.wezterm", "net.kovidgoyal.kitty", "org.alacritty",
         ]
 
         public init() {}

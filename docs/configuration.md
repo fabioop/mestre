@@ -344,7 +344,7 @@ Without `--default` it prints the settings in force.
   `pollIntervalSeconds` (the pasteboard has no change notification, so its change counter is
   read this often) and `excludeApps` (bundle identifiers; the defaults
   cover common password managers; contents marked concealed or transient are never kept, and a
-  snippet's `{clipboard}` is left empty for them).
+  snippet's `{clipboard}` is left empty for concealed ones, such as a password manager's copy).
   History is stored in plain text, owner-only, under
   `~/Library/Application Support/Mestre/Clipboard`; images as PNG files named by content hash.
 - `snippets`: `enabled`, `items` (`{name, text, keyword}`), `dateFormat`, `timeFormat`.
@@ -374,7 +374,7 @@ Without `--default` it prints the settings in force.
 - `dictionary`: `enabled`, `keyword`, `maxLines`, `debounceSeconds`, `onPaste`, `cards`, `cardSenses`. Uses the dictionaries
   enabled in Dictionary.app; lookups run off the main thread after the pause. With `onPaste`, pasting a
   single word (the whole field) shows its definition above every other result, without the keyword;
-  typing it doesn't. With `cards`, a definition shows as cards in either home layout:
+  typing it doesn't. With `cards`, `define <word>` shows the definition as cards in either home layout:
   the word and its pronunciation, then up to `cardSenses` senses (1–6) with an example each, and the origin.
 - `calendar`: `enabled`, `keyword`, `daysAhead`, `maxResults`, `excludeCalendars` (`"Name"` in every
   account, or `"Account/Name"`), `mergeDuplicates` (an invitation in several accounts shows once), `countdownMinutes` (events starting

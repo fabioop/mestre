@@ -14,8 +14,10 @@ final class CurrencyRatesStore {
     private var loadedFromDisk = false
     private var isBusy = false
     private var lastAttempt: Date?
-    /// A failed download isn't retried on every keystroke.
-    private let retryInterval: TimeInterval = 3600
+    /// A failed download isn't retried on every keystroke, but soon enough that coming back
+    /// online or fixing `ratesURL` shows rates within minutes.
+    private let retryInterval: TimeInterval = 300
+    private var lastURL: String?
 
     nonisolated static let defaultFile = AppSupport.folder.appendingPathComponent("currency-rates.json")
 
@@ -26,6 +28,11 @@ final class CurrencyRatesStore {
     /// Called from the keystroke path, so it only starts work and returns.
     func refreshIfNeeded(settings: Config.Calculator) {
         guard !isBusy else { return }
+        if settings.ratesURL != lastURL {
+            // Another source: whatever failed or was cached for the old one doesn't count.
+            if lastURL != nil { lastAttempt = nil; rates = nil; loadedFromDisk = true }
+            lastURL = settings.ratesURL
+        }
         if let lastAttempt, Date().timeIntervalSince(lastAttempt) < retryInterval { return }
         if loadedFromDisk, let rates, !rates.isStale(maxAgeHours: settings.ratesMaxAgeHours) { return }
         isBusy = true

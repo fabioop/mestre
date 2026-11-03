@@ -21,7 +21,8 @@ struct CalendarEventItem: SearchItem {
     var actions: [ItemAction] { event.meetingURL == nil ? [Self.show, Self.copy] : [Self.join, Self.show, Self.copy] }
 
     static let join = ItemAction(id: "join", title: "Join Meeting", icon: "video")
-    static let show = ItemAction(id: "show", title: "Show in Calendar", icon: "calendar", defaultKeys: ["cmd+return"])
+    /// The shared `reveal` id, so it gets ⌘↩ as Show in Finder does instead of fighting it for the key.
+    static let show = ItemAction(id: "reveal", title: "Show in Calendar", icon: "calendar", defaultKeys: ["cmd+return"])
     static let copy = ItemAction(id: "copy", title: "Copy Details", icon: "doc.on.doc")
 }
 
@@ -64,6 +65,8 @@ final class CalendarProvider: ResultProvider {
     /// Connecting to the calendar daemon takes tens of ms, so the store is made off the main thread.
     private var store: EKEventStore?
     private var events: [AgendaEvent]?
+    /// False when macOS has no calendar at all, so the empty list points to Internet Accounts.
+    private var hasCalendars = true
     private var isLoading = false
     /// Bumped when settings change, so a read started with the old ones is thrown away.
     private var loadGeneration = 0
@@ -110,13 +113,16 @@ final class CalendarProvider: ResultProvider {
         let words = Array(query.words.dropFirst())
         let rows = CalendarAgenda.upcoming(events ?? [], matching: words, now: now).prefix(min(limit, settings.maxResults))
             .map { CalendarEventItem(event: $0, when: CalendarAgenda.when($0, now: now, countdownMinutes: settings.countdownMinutes)) }
-        if rows.isEmpty, words.isEmpty, events != nil { return ScoredItem.pinned([Self.accountsRow], provider: self) }
+        // Only a Mac with no calendars at all is sent to Internet Accounts; a free week says so.
+        if rows.isEmpty, words.isEmpty, events != nil, !hasCalendars { return ScoredItem.pinned([Self.accountsRow], provider: self) }
         return ScoredItem.pinned(Array(rows), provider: self)
     }
 
     private func eventStore() async -> EKEventStore {
         if let store { return store }
         let made = await Task.detached(priority: .userInitiated) { EKEventStore() }.value
+        // Another caller (Settings, the panel) may have made one meanwhile: keep a single store.
+        if let store { return store }
         store = made
         return made
     }
@@ -127,9 +133,10 @@ final class CalendarProvider: ResultProvider {
     func requestAccess() async {
         switch EKEventStore.authorizationStatus(for: .event) {
         case .notDetermined:
-            let granted = (try? await eventStore().requestFullAccessToEvents()) ?? false
-            // A store made before the grant can go on seeing no calendars; the next read makes a new one.
-            if granted { store = nil }
+            _ = try? await eventStore().requestFullAccessToEvents()
+            // A store made before access can go on seeing no calendars, also after a later grant in
+            // System Settings; the next read makes a new one.
+            store = nil
         case .fullAccess:
             break
         default:
@@ -145,23 +152,27 @@ final class CalendarProvider: ResultProvider {
         let generation = loadGeneration
         Task {
             let store = await eventStore()
-            watchForChanges(store)
-            let loaded = await Task.detached(priority: .userInitiated) { Self.read(store, settings: settings) }.value
+            watchForChanges()
+            let (loaded, found) = await Task.detached(priority: .userInitiated) { Self.read(store, settings: settings) }.value
             isLoading = false
+            // A settings change or a calendar change during the read makes it stale: onChange reads again.
             if generation == loadGeneration {
                 events = loaded
+                hasCalendars = found
                 loadedAt = Date()
             }
             onChange?()
         }
     }
 
-    private func watchForChanges(_ store: EKEventStore) {
+    private func watchForChanges() {
         guard !isWatching else { return }
         isWatching = true
-        NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: store, queue: .main) { [weak self] _ in
+        // Any of Mestre's stores: the cached one is replaced after an access prompt.
+        NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.events = nil
+                self?.loadGeneration &+= 1
                 self?.onChange?()
             }
         }
@@ -178,11 +189,13 @@ final class CalendarProvider: ResultProvider {
         }.value
     }
 
-    private nonisolated static func read(_ store: EKEventStore, settings: Config.CalendarEvents) -> [AgendaEvent] {
+    /// The events, and whether macOS has any calendar at all.
+    private nonisolated static func read(_ store: EKEventStore, settings: Config.CalendarEvents) -> ([AgendaEvent], Bool) {
+        let all = store.calendars(for: .event)
         let start = Calendar.current.startOfDay(for: Date())
-        guard let end = Calendar.current.date(byAdding: .day, value: settings.daysAhead + 1, to: start) else { return [] }
-        let calendars = store.calendars(for: .event).filter { !CalendarAgenda.isExcluded(calendar: $0.title, account: $0.source?.title ?? "", in: settings.excludeCalendars) }
-        guard !calendars.isEmpty else { return [] }
+        guard let end = Calendar.current.date(byAdding: .day, value: settings.daysAhead + 1, to: start) else { return ([], !all.isEmpty) }
+        let calendars = all.filter { !CalendarAgenda.isExcluded(calendar: $0.title, account: $0.source?.title ?? "", in: settings.excludeCalendars) }
+        guard !calendars.isEmpty else { return ([], !all.isEmpty) }
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
         let hosts = settings.meetingHosts.map { $0.lowercased() }
         let events = store.events(matching: predicate).map { event in
@@ -198,7 +211,7 @@ final class CalendarProvider: ResultProvider {
                 meetingURL: CalendarAgenda.meetingURL(in: [event.url?.absoluteString, event.location, event.notes], hosts: hosts)
             )
         }
-        return CalendarAgenda.sorted(settings.mergeDuplicates ? CalendarAgenda.mergingDuplicates(events) : events)
+        return (CalendarAgenda.sorted(settings.mergeDuplicates ? CalendarAgenda.mergingDuplicates(events) : events), true)
     }
 
     func perform(_ action: ItemAction, on item: any SearchItem) {
@@ -208,7 +221,7 @@ final class CalendarProvider: ResultProvider {
         case "join":
             dismiss?()
             if let url = item.event.meetingURL { NSWorkspace.shared.open(url) }
-        case "show":
+        case "reveal":
             dismiss?()
             if let url = item.event.calendarURL { NSWorkspace.shared.open(url) }
         case "copy":

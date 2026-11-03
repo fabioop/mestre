@@ -18,7 +18,8 @@ struct CalculatorItem: SearchItem {
     var actions: [ItemAction] { isNotice ? [] : number == nil ? [Self.copy] : [Self.copy, Self.copyNumber] }
 
     static let copy = ItemAction(id: "copy", title: "Copy Result", icon: "doc.on.doc")
-    static let copyNumber = ItemAction(id: "copyNumber", title: "Copy Number", icon: "number", defaultKeys: ["cmd+shift+c"])
+    /// No default key: cmd+shift+c belongs to Copy Path on every other row.
+    static let copyNumber = ItemAction(id: "copyNumber", title: "Copy Number", icon: "number")
 }
 
 /// Evaluates arithmetic and conversions typed into the search box. Return copies the result.
@@ -71,7 +72,8 @@ final class CalculatorProvider: ResultProvider {
             if request.isImplied { return [] }
             return ScoredItem.pinned([CalculatorItem(expression: query.text, result: "No rate for \(request.from.symbol) → \(request.to.symbol)", isNotice: true)], provider: self)
         }
-        let number = String(format: "%.2f", value)
+        // Cents for amounts people pay; significant digits below one, so 1 krw to usd isn't "0.00".
+        let number = abs(value) >= 1 ? String(format: "%.2f", value) : Calculator.format(value, precision: min(settings.precision, 4))
         return ScoredItem.pinned([CalculatorItem(expression: "\(query.text) · rates from \(table.date)", result: "\(number) \(request.to.symbol)", number: number)], provider: self)
     }
 
