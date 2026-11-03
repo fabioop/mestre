@@ -75,6 +75,7 @@ final class ClipboardMonitor {
             }
         }
         lastChangeCount = pasteboard.changeCount
+        Self.ownTransientChange = transient ? pasteboard.changeCount : nil
     }
 
     /// Records whatever is on the pasteboard right now, before Mestre overwrites it.
@@ -140,9 +141,9 @@ final class ClipboardMonitor {
         "com.typeit4me.clipping", "net.antelle.keeweb",
     ]
 
-    /// The markers that mean a secret, not only "don't keep this". A snippet's `{clipboard}` skips
-    /// these; transient copies, Mestre's own pastes among them, still fill it.
-    nonisolated static let secretTypes: Set<String> = ["org.nspasteboard.ConcealedType", "com.agilebits.onepassword", "net.antelle.keeweb"]
+    /// The pasteboard's change count after Mestre's last transient write. That paste carries the
+    /// transient markers too, yet a snippet's `{clipboard}` may use it: it is Mestre's own text.
+    private(set) static var ownTransientChange: Int?
 
     /// Reads the pasteboard on the main thread (required), then does any heavy work off it.
     private func capture(from pasteboard: NSPasteboard, source: String?) {
