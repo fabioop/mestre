@@ -30,6 +30,8 @@
     <string>Mestre runs system commands such as Empty Trash and Toggle Dark Mode by sending Apple events to Finder and System Events.</string>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Mestre lists your paired Bluetooth devices so you can connect them, for example with "pair airpods".</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Mestre lists your upcoming events when you type its calendar keyword. Nothing leaves this Mac.</string>
     <key>SUFeedURL</key>
     <string>https://raw.githubusercontent.com/fabioop/mestre/appcast/appcast.xml</string>
     <key>NSHumanReadableCopyright</key>

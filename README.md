@@ -18,6 +18,7 @@ Press **⌥ Space** and type.
 | --- | --- |
 | Open and switch apps | `saf` |
 | Calculator | `2*(3+4)` |
+| Unit and currency conversion | `10 km to mi`, `100 usd to eur` |
 | Clipboard history | `clip` |
 | Snippets and text expansion | a snippet's name |
 | Emoji and symbols | `:fire` |
@@ -30,12 +31,13 @@ Press **⌥ Space** and type.
 | Quicklinks and web search | `gh swift` |
 | Browser bookmarks | `bm swift` |
 | Dictionary | `define serendipity` |
+| Translator (macOS 26) | `tr bom dia` |
+| Upcoming events and meetings, from every macOS calendar account | `cal ` |
 | Colour conversion | `#ff8800` |
 | Keep awake | `awake 45m` |
 | Kill a process | `kill chrome` |
 | Connect Bluetooth devices | `pair airpods` |
 | Apple Shortcuts | a shortcut's name |
-| Your own scripts | a keyword you choose |
 | Themes | `panel.theme`, or Settings › Appearance |
 | Tile home screen | `home.layout`, or Settings › Appearance |
 | Automatic updates | `updates.check`, `updates.channel` |

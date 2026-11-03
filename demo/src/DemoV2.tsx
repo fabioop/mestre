@@ -384,7 +384,6 @@ const chapters: Chapter[] = [
     light: { base: "#17121f", a: "#a14fe0", b: "#e0407a" },
     beats: [
       { title: "Apple Shortcuts", say: "Everything you built in Shortcuts.", duration: 44 },
-      { title: "Your own scripts", say: "Your keyword, your script.", duration: 54 },
     ],
   },
   {

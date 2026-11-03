@@ -2,7 +2,7 @@ import AppKit
 
 /// What kind of thing a result is. Shown as a badge. Cases are added with each provider.
 public enum ItemKind: String, Codable, CaseIterable, Sendable {
-    case app, calculator, command, settings, process, shortcut, quicklink, web, window, clipboard, snippet, emoji, file, definition, bookmark, color, keepAwake, bluetooth, feature, script
+    case app, calculator, command, settings, process, shortcut, quicklink, web, window, clipboard, snippet, emoji, file, definition, bookmark, color, keepAwake, bluetooth, feature, event, translation
 
     public var label: String {
         switch self {
@@ -25,7 +25,8 @@ public enum ItemKind: String, Codable, CaseIterable, Sendable {
         case .keepAwake: return "Keep Awake"
         case .bluetooth: return "Bluetooth"
         case .feature: return "Feature"
-        case .script: return "Script"
+        case .event: return "Event"
+        case .translation: return "Translation"
         }
     }
 
@@ -36,7 +37,7 @@ public enum ItemKind: String, Codable, CaseIterable, Sendable {
         case .app, .file, .settings, .shortcut, .window, .bookmark, .web, .quicklink, .definition:
             return .metadata
         // The second line is the answer, the grammar, or what the user would read anyway.
-        case .calculator, .color, .command, .process, .clipboard, .snippet, .emoji, .keepAwake, .bluetooth, .feature, .script:
+        case .calculator, .color, .command, .process, .clipboard, .snippet, .emoji, .keepAwake, .bluetooth, .feature, .event, .translation:
             return .content
         }
     }
@@ -141,9 +142,12 @@ public struct Query: Equatable, Sendable {
     public let text: String
     public let lowercased: String
     public let words: [String]
+    /// The field holds exactly what was just pasted, not typed: a word to look up, an amount to convert.
+    public let isPasted: Bool
 
-    public init(_ raw: String) {
+    public init(_ raw: String, isPasted: Bool = false) {
         self.raw = raw
+        self.isPasted = isPasted
         text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         lowercased = text.lowercased()
         words = lowercased.split(whereSeparator: \.isWhitespace).map(String.init)

@@ -58,11 +58,13 @@ struct FeaturesPage: View {
         switch feature {
         case .clipboard: ClipboardOptions(settings: settings, viewModel: viewModel)
         case .snippets: SnippetOptions(settings: settings, expander: expander, apps: viewModel.apps.index)
-        case .calculator: IntStepper(label: "Significant digits", value: $settings.config.calculator.precision, range: 1...17).setting("calculator.precision")
+        case .calculator: CalculatorOptions(settings: settings)
         case .emoji: EmojiOptions(settings: settings)
         case .files: FileOptions(settings: settings)
         case .folders: FolderOptions(settings: settings)
         case .dictionary: DictionaryOptions(settings: settings)
+        case .translator: TranslatorOptions(settings: settings)
+        case .calendar: CalendarOptions(settings: settings, provider: viewModel.calendar)
         case .bookmarks: BookmarkOptions(settings: settings)
         case .colours: ColourOptions(settings: settings)
         case .commands: CommandOptions(settings: settings)
@@ -177,6 +179,77 @@ private struct DictionaryOptions: View {
     var body: some View {
         KeywordField(label: "Keyword", value: $settings.config.dictionary.keyword, placeholder: "define").setting("dictionary.keyword")
         IntStepper(label: "Lines shown", value: $settings.config.dictionary.maxLines, range: 1...20).setting("dictionary.lines")
+        Toggle("Define a pasted word first, without the keyword", isOn: $settings.config.dictionary.onPaste).setting("dictionary.paste")
+        Toggle("Show definitions as cards", isOn: $settings.config.dictionary.cards).setting("dictionary.cards")
+    }
+}
+
+private struct CalculatorOptions: View {
+    @ObservedObject var settings: ConfigStore
+
+    var body: some View {
+        IntStepper(label: "Significant digits", value: $settings.config.calculator.precision, range: 1...17).setting("calculator.precision")
+        Toggle("Unit conversions, like 10 km to mi", isOn: $settings.config.calculator.units).setting("calculator.units")
+        Toggle("Currency conversions, like 100 usd to eur", isOn: $settings.config.calculator.currency).setting("calculator.currency")
+        if settings.config.calculator.currency {
+            KeywordField(label: "Default currency", value: $settings.config.calculator.defaultCurrency, placeholder: Locale.current.currency?.identifier ?? "EUR").setting("calculator.defaultCurrency")
+            Caption("Reference rates from the European Central Bank, downloaded once a day and only after you type a currency conversion.")
+        }
+    }
+}
+
+private struct TranslatorOptions: View {
+    @ObservedObject var settings: ConfigStore
+
+    var body: some View {
+        KeywordField(label: "Keyword", value: $settings.config.translator.keyword, placeholder: "tr").setting("translator.keyword")
+        CommittedField(label: "Translate into", value: $settings.config.translator.languages,
+                       render: { $0.joined(separator: ", ") },
+                       parse: { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } },
+                       placeholder: "pt-PT, en")
+            .setting("translator.languages")
+        Caption("Text goes to the first language it isn't already in. Translation stays on this Mac and needs macOS 26 and the language downloaded under System Settings › General › Language & Region › Translation Languages.")
+    }
+}
+
+private struct CalendarOptions: View {
+    @ObservedObject var settings: ConfigStore
+    let provider: CalendarProvider
+    @State private var sources: [CalendarSource] = []
+
+    private var accounts: [String] {
+        var seen = Set<String>()
+        return sources.map(\.account).filter { seen.insert($0).inserted }
+    }
+
+    var body: some View {
+        KeywordField(label: "Keyword", value: $settings.config.calendar.keyword, placeholder: "cal").setting("calendar.keyword")
+        IntStepper(label: "Days ahead", value: $settings.config.calendar.daysAhead, range: 1...90).setting("calendar.days")
+        Group {
+            if sources.isEmpty {
+                LabeledContent("Calendars") {
+                    Button("Allow Calendar Access…") {
+                        Task {
+                            await provider.requestAccess()
+                            sources = await provider.sources()
+                        }
+                    }
+                }
+            }
+            ForEach(accounts, id: \.self) { account in
+                ShownChecklist(
+                    label: account.isEmpty ? "Calendars" : account,
+                    choices: sources.filter { $0.account == account }.map { Choice(id: CalendarAgenda.calendarID(account: account, calendar: $0.name), title: $0.name) },
+                    hidden: $settings.config.calendar.excludeCalendars,
+                    matchesTitle: true
+                )
+            }
+        }
+        .setting("calendar.exclude")
+        Toggle("Show an invitation in several accounts once", isOn: $settings.config.calendar.mergeDuplicates).setting("calendar.duplicates")
+        Button("Add Accounts in Internet Accounts…") { NSWorkspace.shared.open(SettingsPane.internetAccounts.url) }
+        Caption("Reads every account macOS has: iCloud, Google, Microsoft 365 and Exchange, Yahoo, CalDAV. macOS asks for access the first time you use the keyword or the button above.")
+            .task { sources = await provider.sources() }
     }
 }
 

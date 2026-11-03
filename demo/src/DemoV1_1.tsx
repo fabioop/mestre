@@ -394,22 +394,6 @@ export const features: Feature[] = [
       },
     ],
   },
-  {
-    title: "Your own scripts",
-    blurb: "Pick a keyword. Script filters feed results straight in.",
-    duration: 72,
-    steps: [
-      {
-        at: 4,
-        query: "deploy staging",
-        context: "Scripts",
-        openLabel: "Run",
-        rows: [
-          { id: "sc1", title: "Deploy to staging", subtitle: "deploy.sh", kind: "Script", symbol: FileCode },
-        ],
-      },
-    ],
-  },
 ];
 
 const homeState: PanelState = {

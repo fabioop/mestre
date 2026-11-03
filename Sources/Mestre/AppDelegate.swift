@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         panelController = SearchPanelController(viewModel: viewModel)
+        EditShortcut.installMainMenu()
         settings.actionTable = ActionTable(providers: viewModel.providers)
         viewModel.commands.confirm = { command in Self.confirm(command.title) }
         viewModel.windows.onPermissionMissing = { [weak self] in self?.explainAccessibility() }
@@ -343,12 +344,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         settings.$config
-            .map(\.scripts)
-            .removeDuplicates()
-            .sink { [weak self] scripts in self?.viewModel.scripts.settings = scripts }
-            .store(in: &cancellables)
-
-        settings.$config
             .map(\.quickKeys)
             .removeDuplicates()
             .sink { [weak self] quickKeys in self?.viewModel.quickKeys = quickKeys }
@@ -427,6 +422,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .map(\.dictionary)
             .removeDuplicates()
             .sink { [weak self] dictionary in self?.viewModel.dictionary.settings = dictionary }
+            .store(in: &cancellables)
+
+        settings.$config
+            .map(\.calendar)
+            .removeDuplicates()
+            .sink { [weak self] calendar in self?.viewModel.calendar.settings = calendar }
+            .store(in: &cancellables)
+
+        settings.$config
+            .map(\.translator)
+            .removeDuplicates()
+            .sink { [weak self] translator in self?.viewModel.translator.settings = translator }
             .store(in: &cancellables)
 
         settings.$config

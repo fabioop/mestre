@@ -173,6 +173,12 @@ import Testing
 }
 
 @Suite struct DebugConfigTests {
+    @Test func aFileWithTheRemovedScriptsSectionStillLoads() throws {
+        let json = #"{"hotKey": "cmd+space", "scripts": {"enabled": true, "items": [{"name": "A", "keyword": "a", "command": "x"}]}}"#
+        let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+        #expect(config.hotKey.configString == "cmd+space")
+    }
+
     @Test func updatesDefaultToStableDailyChecks() throws {
         let defaults = Config().updates
         #expect(defaults.check && defaults.channel == .stable && defaults.intervalHours == 24 && defaults.feedURL == nil)

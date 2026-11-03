@@ -135,13 +135,13 @@ import Testing
     @Test func twoItemActionsWithOneDefaultKeyAreReportedAsAConflict() {
         let a = ItemAction(id: "copyPath", title: "Copy Path", defaultKeys: ["cmd+shift+c"])
         let b = ItemAction(id: "copyArgument", title: "Copy Argument", defaultKeys: ["cmd+shift+c"])
-        let bindings = KeyBindings(keys: Config.Keys(), actions: ActionTable(providerActions: [("files", [a]), ("scripts", [b])]), keyCodes: ["c": 8])
+        let bindings = KeyBindings(keys: Config.Keys(), actions: ActionTable(providerActions: [("files", [a]), ("quicklinks", [b])]), keyCodes: ["c": 8])
         #expect(bindings.conflicts == ["cmd+shift+c"])
         #expect(bindings.binding(forKeyCode: 8, modifiers: [.command, .shift]) == .item("copyArgument"))  // alphabetical: the wrong one wins
     }
 
     @Test func anItemActionNamedLikeAPanelActionMergesIntoIt() {
-        let table = ActionTable(providerActions: [("scripts", [ItemAction(id: "complete", title: "Complete")])])
+        let table = ActionTable(providerActions: [("quicklinks", [ItemAction(id: "complete", title: "Complete")])])
         #expect(table["complete"]?.isPanel == true && table["complete"]?.title == "Complete or Unfold")
     }
 }

@@ -73,7 +73,6 @@ import Testing
         config.quicklinks = [Quicklink(name: "Maps", url: "https://maps.example")]
         config.snippets.items = [Snippet(name: "Sig", text: "Regards")]
         config.snippets.dateFormat = "dd/MM/yyyy"
-        config.scripts.items = [ScriptFilter(name: "S", keyword: "s", command: "x")]
         config.aliases = ["ff": "Firefox"]
         config.onboarding.showWelcome = false
         config.startup.launchAtLogin = true
@@ -85,7 +84,6 @@ import Testing
         var expected = Config()
         expected.quicklinks = customised.quicklinks
         expected.snippets.items = customised.snippets.items
-        expected.scripts.items = customised.scripts.items
         expected.aliases = customised.aliases
         expected.onboarding.showWelcome = false
         expected.startup.launchAtLogin = true

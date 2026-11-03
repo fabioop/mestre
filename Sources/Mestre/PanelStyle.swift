@@ -162,6 +162,15 @@ struct PanelStyle {
     /// The fill behind unselected symbols and chips.
     var quietFill: Color { iconTile ?? Color.primary.opacity(0.07) }
 
+    /// A tile's ink, or the panel's when the palette gives none.
+    func ink(of tile: (fill: Color, ink: Color?)) -> AnyShapeStyle {
+        tile.ink.map { AnyShapeStyle($0) } ?? ink
+    }
+
+    func tileShape(_ radius: CGFloat? = nil) -> RoundedRectangle {
+        RoundedRectangle(cornerRadius: radius ?? tileRadius, style: .continuous)
+    }
+
     /// The palette's next tile, or the quiet fill when the theme has no palette.
     func tile(_ index: Int) -> (fill: Color, ink: Color?) {
         guard !tiles.isEmpty else { return (quietFill, nil) }

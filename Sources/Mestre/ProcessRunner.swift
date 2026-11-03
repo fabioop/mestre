@@ -35,14 +35,13 @@ enum ProcessRunner {
     /// Most stdout a tool may print before its output is dropped.
     static let maxOutputBytes = 4 << 20
 
-    /// Runs a tool and captures its stdout. `environment` is added to the inherited one.
+    /// Runs a tool and captures its stdout.
     /// A run past `timeout` gets SIGTERM, then SIGKILL a second later if it ignored that.
     /// Blocking: call it from a detached task.
-    static func capture(_ path: String, _ arguments: [String], environment: [String: String] = [:], timeout: TimeInterval? = nil) -> Capture {
+    static func capture(_ path: String, _ arguments: [String], timeout: TimeInterval? = nil) -> Capture {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
-        if !environment.isEmpty { process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new } }
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice

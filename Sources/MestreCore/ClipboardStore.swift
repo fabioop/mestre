@@ -139,13 +139,19 @@ public struct ClipboardHistory: Codable, Equatable, Sendable {
 public struct KeywordMode: Equatable, Sendable {
     public let enabled: Bool
     public let keyword: String
+    /// The keyword alone isn't enough; it needs the space after it. A short keyword ("cal",
+    /// "tr") then never hides the apps whose names start with it.
+    public let needsSpace: Bool
 
-    public init(enabled: Bool, keyword: String) {
+    public init(enabled: Bool, keyword: String, needsSpace: Bool = false) {
         self.enabled = enabled
         self.keyword = keyword
+        self.needsSpace = needsSpace
     }
 
-    public func matches(_ query: Query) -> Bool { enabled && query.firstWord == keyword }
+    public func matches(_ query: Query) -> Bool {
+        enabled && query.firstWord == keyword && (!needsSpace || query.raw.drop { $0.isWhitespace }.count > keyword.count)
+    }
 }
 
 public extension ScoredItem {
