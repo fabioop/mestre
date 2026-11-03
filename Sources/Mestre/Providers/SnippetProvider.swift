@@ -39,7 +39,11 @@ final class SnippetProvider: ResultProvider {
 
     /// The snippet's text with placeholders filled from the current clipboard and formats.
     static func expansion(of snippet: Snippet, with settings: Config.Snippets) -> SnippetExpander.Expansion {
-        let clipboard = NSPasteboard.general.string(forType: .string) ?? ""
+        // A password manager's copy stays where it was put: pasting it inside a snippet would put
+        // it back on the pasteboard unmarked, where clipboard managers record it.
+        let pasteboard = NSPasteboard.general
+        let concealed = (pasteboard.types ?? []).contains { ClipboardMonitor.concealedTypes.contains($0.rawValue) }
+        let clipboard = concealed ? "" : pasteboard.string(forType: .string) ?? ""
         return SnippetExpander.expand(snippet.text, clipboard: clipboard, dateFormat: settings.dateFormat, timeFormat: settings.timeFormat)
     }
 

@@ -93,9 +93,14 @@ final class BookmarkProvider: ResultProvider {
         guard let bookmark = (item as? BookmarkItem)?.bookmark, let url = URL(string: bookmark.url) else { NSSound.beep(); return }
         switch action.id {
         case "open":
+            // Synced bookmarks can come from another device; a `file:` or app-scheme one goes to the
+            // browser it came from, as clicking it there would, never to whatever app claims the scheme.
+            let isWeb = ["http", "https"].contains(url.scheme?.lowercased() ?? "")
+            let browser = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bookmark.browser.bundleIdentifier)
+            guard isWeb || browser != nil else { NSSound.beep(); return }
             dismiss?()
-            if settings.openInSourceBrowser, let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bookmark.browser.bundleIdentifier) {
-                NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+            if let browser, settings.openInSourceBrowser || !isWeb {
+                NSWorkspace.shared.open([url], withApplicationAt: browser, configuration: NSWorkspace.OpenConfiguration())
             } else {
                 NSWorkspace.shared.open(url)
             }

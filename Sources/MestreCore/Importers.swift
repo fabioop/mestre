@@ -22,6 +22,15 @@ public struct ImportResult: Equatable, Sendable {
         hotkeys.merge(other.hotkeys) { mine, _ in mine }
         warnings += other.warnings
     }
+
+    /// Exports get shared, so only web and mail links come over; the rest are named in a warning
+    /// for the user to add by hand if they meant them.
+    mutating func setAsideNonWebLinks() {
+        for link in quicklinks where !link.isWebLink {
+            warnings.append("\(link.name): \(link.url) isn't a web link, so it wasn't imported; add it under Quicklinks if you trust it")
+        }
+        quicklinks.removeAll { !$0.isWebLink }
+    }
 }
 
 /// How many of each kind an import added.
@@ -86,6 +95,7 @@ public enum RaycastImport {
             }
         }
         if result.isEmpty && !array.isEmpty { throw Failure.notRaycastJSON }
+        result.setAsideNonWebLinks()
         return result
     }
 
@@ -145,6 +155,7 @@ public enum AlfredImport {
             }
         }
         result.snippets.sort { $0.name < $1.name }
+        result.setAsideNonWebLinks()
         return result
     }
 
@@ -180,8 +191,9 @@ public enum AlfredImport {
 
     /// A workflow's `info.plist`: hotkey triggers wired to a "Launch Apps/Files" action become
     /// hotkey → app name entries. Anything else a hotkey triggers is out of scope, and so is
-    /// a disabled workflow.
-    public static func workflowHotkeys(from data: Data) throws -> ImportResult {
+    /// a disabled workflow. An app that isn't installed is skipped: Mestre would fall back to
+    /// a command of the same name, such as Sleep.
+    public static func workflowHotkeys(from data: Data, appExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) throws -> ImportResult {
         var result = ImportResult()
         guard let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
               plist["disabled"] as? Bool != true,
@@ -204,6 +216,10 @@ public enum AlfredImport {
             else { continue }
             // Mestre's hotkey targets are app names or bundle ids, not paths.
             let appName = URL(fileURLWithPath: app).deletingPathExtension().lastPathComponent
+            guard appExists(NSString(string: app).expandingTildeInPath) else {
+                result.warnings.append("\(workflow): \(appName) isn't installed, so its hotkey was skipped")
+                continue
+            }
             let label = KeyCombo.label(forKeyCode: UInt16(keyCode), characters: config["hotstring"] as? String)
             let combo = KeyCombo(keyCode: UInt32(keyCode), modifiers: NSEvent.ModifierFlags(rawValue: modifiers), keyLabel: label)
             guard !combo.modifiers.isEmpty else { continue }  // modifier-only or unset triggers aren't global hotkeys

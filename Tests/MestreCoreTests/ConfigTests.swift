@@ -183,6 +183,14 @@ import Testing
         #expect(config.updates.intervalHours == 1)
         #expect(config.updates.feedURL == nil)
 
+        // The feed picks which build is offered, so plain http and other schemes are ignored.
+        let https = try JSONDecoder().decode(Config.self, from: Data(#"{"updates": {"feedURL": "https://example.com/appcast.xml"}}"#.utf8))
+        #expect(https.updates.feedURL == "https://example.com/appcast.xml")
+        for feed in ["http://example.com/appcast.xml", "file:///tmp/appcast.xml", "example.com/appcast.xml"] {
+            let config = try JSONDecoder().decode(Config.self, from: Data(#"{"updates": {"feedURL": "\#(feed)"}}"#.utf8))
+            #expect(config.updates.feedURL == nil)
+        }
+
         let unknown = try JSONDecoder().decode(Config.self, from: Data(#"{"updates": {"channel": "nightly"}}"#.utf8))
         #expect(unknown.updates.channel == .stable)
     }

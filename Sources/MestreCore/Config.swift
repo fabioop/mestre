@@ -519,6 +519,8 @@ public struct Config: Codable, Equatable, Sendable {
         public var excludeApps: [String] = [
             "com.1password.1password", "com.agilebits.onepassword7", "com.bitwarden.desktop",
             "com.lastpass.LastPass", "org.keepassxc.keepassxc", "com.apple.keychainaccess", "com.apple.Passwords",
+            "com.markmcguill.strongbox", "com.markmcguill.strongbox.mac", "in.sinew.Enpass-Desktop", "com.dashlane.dashlanephonefinal",
+            "com.outercorner.Secrets", "com.bitwarden.desktop.safari", "com.proton.pass.electron",
         ]
 
         public init() {}
@@ -565,8 +567,12 @@ public struct Config: Codable, Equatable, Sendable {
     /// it needs a keyboard event tap (Accessibility) that sees every key you type.
     public struct Expansion: Codable, Equatable, Sendable {
         public var enabled: Bool = false
-        /// Bundle identifiers where keywords are never expanded (terminals, password fields).
-        public var excludeApps: [String] = []
+        /// Bundle identifiers where keywords are never expanded. Terminals by default: an expansion
+        /// there is a pasted command, and shared or imported snippets shouldn't get to type one.
+        public var excludeApps: [String] = [
+            "com.apple.Terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty", "dev.warp.Warp-Stable",
+            "com.github.wez.wezterm", "net.kovidgoyal.kitty", "io.alacritty",
+        ]
 
         public init() {}
 
@@ -797,8 +803,9 @@ public struct Config: Codable, Equatable, Sendable {
             check = try c.decodeIfPresent(Bool.self, forKey: .check) ?? check
             channel = c.decodeChoice(forKey: .channel) ?? channel
             intervalHours = max(1, try c.decodeIfPresent(Int.self, forKey: .intervalHours) ?? intervalHours)
+            // Only https: the feed decides which build is offered, and its notes are shown as HTML.
             let feed = try c.decodeIfPresent(String.self, forKey: .feedURL)?.trimmingCharacters(in: .whitespaces)
-            feedURL = feed?.isEmpty == false ? feed : nil
+            feedURL = feed.flatMap { URLComponents(string: $0)?.scheme?.lowercased() == "https" ? $0 : nil }
         }
     }
 

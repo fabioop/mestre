@@ -41,6 +41,7 @@ Press **⌥ Space** and type.
 | Automatic updates | `updates.check`, `updates.channel` |
 
 You can also import snippets, quicklinks and hotkeys from Raycast or Alfred under Settings › General.
+Only web and mail quicklinks come over, and hotkeys only for apps that are installed; the rest are listed for you to add by hand.
 
 ## Keys
 

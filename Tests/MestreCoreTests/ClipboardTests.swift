@@ -89,5 +89,14 @@ import Testing
         #expect(config.clipboard.keyword == "cb")
         #expect(Config().clipboard.excludeApps.contains("com.1password.1password"))
         #expect(Config().clipboard.maxAgeDays == 30 && Config().paste.delaySeconds == 0.05)
+        #expect(Config().snippets.expansion.excludeApps.contains("com.apple.Terminal"))
+    }
+
+    @Test func imageNamesAreContentHashesOnly() {
+        let name = ClipboardEntry.imageName(for: Data("x".utf8))
+        #expect(ClipboardEntry.isImageName(name))
+        for bad in ["../../Documents/x.png", "x.png", name.uppercased(), name + "/../a.png", "/" + name] {
+            #expect(!ClipboardEntry.isImageName(bad))
+        }
     }
 }
