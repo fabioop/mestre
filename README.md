@@ -8,6 +8,12 @@ A free, open-source launcher for macOS. Fast, keyboard-first, and configured by 
 
 *Mestre* is Portuguese for "master".
 
+## Principles
+
+- **Fast.** The panel shows in under 50 ms and results follow every keystroke. Mestre uses no CPU while it waits.
+- **Configured by one file.** Every behaviour, shortcut and number has a key in `~/.config/mestre/config.json`. The Settings window edits the same file.
+- **Private.** Your data stays on your Mac: no account, no analytics, no tracking. Translation runs on-device, and calendars are read through macOS. Mestre only goes online to check for updates and to fetch exchange rates after you type a currency conversion. Turn them off with `updates.check` and `calculator.currency`.
+
 **Mestre is in beta.** It's ready for daily use, but expect rough edges. Config keys can still change between `0.x` versions, and the release notes say when they do.
 
 ## What it does
@@ -18,6 +24,7 @@ Press **⌥ Space** and type.
 | --- | --- |
 | Open and switch apps | `saf` |
 | Calculator | `2*(3+4)` |
+| Unit and currency conversion | `10 km to mi`, `100 usd to eur` |
 | Clipboard history | `clip` |
 | Snippets and text expansion | a snippet's name |
 | Emoji and symbols | `:fire` |
@@ -30,12 +37,13 @@ Press **⌥ Space** and type.
 | Quicklinks and web search | `gh swift` |
 | Browser bookmarks | `bm swift` |
 | Dictionary | `define serendipity` |
+| Translator (macOS 26) | `tr bom dia` |
+| Upcoming events and meetings, from every macOS calendar account | `cal ` |
 | Colour conversion | `#ff8800` |
 | Keep awake | `awake 45m` |
 | Kill a process | `kill chrome` |
 | Connect Bluetooth devices | `pair airpods` |
 | Apple Shortcuts | a shortcut's name |
-| Your own scripts | a keyword you choose |
 | Themes | `panel.theme`, or Settings › Appearance |
 | Tile home screen | `home.layout`, or Settings › Appearance |
 | Automatic updates | `updates.check`, `updates.channel` |

@@ -20,13 +20,13 @@ public enum SettingsPage: String, CaseIterable, Sendable {
 }
 
 public enum SettingsLibrary: String, CaseIterable, Sendable {
-    case quicklinks, snippets, scripts, aliases
+    case quicklinks, snippets, aliases
 
     public var title: String { rawValue.capitalized }
 }
 
 public enum SettingsFeature: String, CaseIterable, Sendable {
-    case clipboard, snippets, calculator, emoji, files, folders, dictionary, bookmarks, colours
+    case clipboard, snippets, calculator, emoji, files, folders, dictionary, translator, calendar, bookmarks, colours
     case commands, systemSettings, processes, keepAwake, bluetooth, appleShortcuts, web, windows
 
     public var title: String {
@@ -44,11 +44,13 @@ public enum SettingsFeature: String, CaseIterable, Sendable {
         switch self {
         case .clipboard: return "Everything you copied, searchable"
         case .snippets: return "Saved text, expanded as you type"
-        case .calculator: return "Type 2^10 or sqrt(2) into the panel"
+        case .calculator: return "Type 2^10, 10 km to mi or 100 usd to eur"
         case .emoji: return "Find and paste emoji"
         case .files: return "Find files through Spotlight"
         case .folders: return "Browse by typing ~/ or /"
         case .dictionary: return "Look up a word"
+        case .translator: return "Translate text on this Mac"
+        case .calendar: return "Events from Google, Microsoft 365, iCloud and more"
         case .bookmarks: return "Search your browser bookmarks"
         case .colours: return "Convert #ff8800, rgb() and hsl()"
         case .commands: return "Sleep, Lock, Empty Trash and more"
@@ -72,6 +74,8 @@ public enum SettingsFeature: String, CaseIterable, Sendable {
         case .files: return "doc.text.magnifyingglass"
         case .folders: return "folder"
         case .dictionary: return "character.book.closed"
+        case .translator: return "translate"
+        case .calendar: return "calendar"
         case .bookmarks: return "bookmark"
         case .colours: return "paintpalette"
         case .commands: return "terminal"
@@ -94,6 +98,8 @@ public enum SettingsFeature: String, CaseIterable, Sendable {
         case .files: return \.files.enabled
         case .folders: return \.paths.enabled
         case .dictionary: return \.dictionary.enabled
+        case .translator: return \.translator.enabled
+        case .calendar: return \.calendar.enabled
         case .bookmarks: return \.bookmarks.enabled
         case .colours: return \.colors.enabled
         case .commands: return \.commands.enabled
@@ -178,7 +184,6 @@ public enum SettingsCatalog {
         switch section {
         case .quicklinks: return "links url search keyword web"
         case .snippets: return "text template expand keyword"
-        case .scripts: return "script filter command shell json"
         case .aliases: return "shorthand nickname app abbreviation"
         }
     }
@@ -236,6 +241,9 @@ public enum SettingsCatalog {
         option(.snippets, "snippets.expansion", "Expand keywords while typing", "text expansion input monitoring"),
         option(.snippets, "snippets.exclude", "Never expand in these apps", "exclude ignore"),
         option(.calculator, "calculator.precision", "Significant digits", "decimals"),
+        option(.calculator, "calculator.units", "Unit conversions", "km miles length weight temperature convert"),
+        option(.calculator, "calculator.currency", "Currency conversions", "exchange rates money euro dollar ecb"),
+        option(.calculator, "calculator.defaultCurrency", "Default currency", "exchange money"),
         option(.emoji, "emoji.keyword", "Emoji keyword"),
         option(.emoji, "emoji.recent", "Recent emoji shown"),
         option(.files, "files.keyword", "File search keyword"),
@@ -246,6 +254,14 @@ public enum SettingsCatalog {
         option(.folders, "paths.results", "Entries listed", "maximum"),
         option(.dictionary, "dictionary.keyword", "Dictionary keyword", "define"),
         option(.dictionary, "dictionary.lines", "Definition lines shown"),
+        option(.dictionary, "dictionary.paste", "Define a pasted word first", "paste clipboard"),
+        option(.dictionary, "dictionary.cards", "Definitions as cards", "tiles layout"),
+        option(.translator, "translator.keyword", "Translator keyword"),
+        option(.translator, "translator.languages", "Translate into", "target language"),
+        option(.calendar, "calendar.keyword", "Calendar keyword", "agenda events"),
+        option(.calendar, "calendar.days", "Days ahead", "agenda events"),
+        option(.calendar, "calendar.duplicates", "Show an invitation in several accounts once", "merge duplicates"),
+        option(.calendar, "calendar.exclude", "Calendars shown", "hide hidden google microsoft teams exchange outlook icloud account"),
         option(.bookmarks, "bookmarks.keyword", "Bookmarks keyword"),
         option(.bookmarks, "bookmarks.source", "Open in the browser they came from"),
         option(.bookmarks, "bookmarks.everywhere", "Bookmarks in ordinary searches"),
@@ -353,13 +369,12 @@ public extension Config.Snippets {
 
 public extension Config {
     /// Everything back to its default except what you wrote yourself (quicklinks, snippets,
-    /// scripts, aliases) and what a reset shouldn't spring on you: the welcome window coming
+    /// aliases) and what a reset shouldn't spring on you: the welcome window coming
     /// back, a change to whether Mestre starts at login, and clipboard history being deleted.
     func resettingAll() -> Config {
         var result = Config()
         result.quicklinks = quicklinks
         result.snippets.items = snippets.items
-        result.scripts.items = scripts.items
         result.aliases = aliases
         result.onboarding = onboarding
         result.startup = startup
@@ -396,6 +411,8 @@ public extension Config {
             result.files = defaults.files
             result.paths = defaults.paths
             result.dictionary = defaults.dictionary
+            result.translator = defaults.translator
+            result.calendar = defaults.calendar
             result.bookmarks = defaults.bookmarks
             result.colors = defaults.colors
             result.commands = defaults.commands

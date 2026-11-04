@@ -21,7 +21,8 @@ struct DefinitionItem: SearchItem {
     ]
 }
 
-/// "define serendipity" shows the system dictionary's entry, one sense per row.
+/// "define serendipity" shows the system dictionary's entry, one sense per row, and so does a
+/// single pasted word, above everything else.
 /// A lookup costs ~20 ms, so it runs off the main thread after a short pause and the
 /// rows arrive through onChange. Return opens Dictionary.app on the word.
 @MainActor
@@ -38,7 +39,7 @@ final class DictionaryProvider: ResultProvider {
     var replaceQuery: ((String) -> Void)?
 
     private var pendingTerm = ""
-    private var found: (term: String, definition: String, lines: [String])?
+    private var found: (term: String, definition: String, lines: [String], card: DictionaryEntry?)?
     private var pending: DispatchWorkItem?
 
     func owns(_ query: Query) -> Bool { mode.matches(query) }
@@ -49,14 +50,28 @@ final class DictionaryProvider: ResultProvider {
     }
 
     func results(for query: Query, limit: Int) -> [ScoredItem] {
-        guard mode.matches(query), !query.remainder.isEmpty else { return [] }
-        let term = query.remainder
+        let term: String
+        if mode.matches(query), !query.remainder.isEmpty { term = query.remainder }
+        else if let word = pastedWord(query) { term = word }
+        else { return [] }
         if term != pendingTerm { lookUp(term) }
         guard let found, found.term == term else { return [] }
         let items = found.lines.prefix(min(limit, settings.maxLines)).enumerated().map { index, line in
             DefinitionItem(term: term, definition: found.definition, line: line, index: index)
         }
         return ScoredItem.pinned(items, provider: self)
+    }
+
+    private func pastedWord(_ query: Query) -> String? {
+        guard settings.enabled, settings.onPaste, query.isPasted, query.words.count == 1, query.text.count >= 2,
+              query.text.allSatisfy({ $0.isLetter || $0 == "-" || $0 == "'" || $0 == "’" }) else { return nil }
+        return query.text
+    }
+
+    /// The definition laid out as cards (`dictionary.cards`) when `item` is this lookup's row.
+    func card(for item: any SearchItem) -> DictionaryEntry? {
+        guard settings.cards, let item = item as? DefinitionItem, let found, found.term == item.term else { return nil }
+        return found.card
     }
 
     func queryLeft() {
@@ -69,10 +84,14 @@ final class DictionaryProvider: ResultProvider {
         pendingTerm = term
         pending?.cancel()
         let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            let maxSenses = self.settings.cardSenses
             Task {
-                let definition = await Task.detached(priority: .userInitiated) { WordLookup.definition(of: term) }.value
-                guard let self, self.pendingTerm == term else { return }
-                self.found = definition.map { (term, $0, WordLookup.lines(from: $0, limit: 20)) }
+                let found = await Task.detached(priority: .userInitiated) {
+                    WordLookup.definition(of: term).map { (term, $0, WordLookup.lines(from: $0, limit: 20), DictionaryEntry.parse($0, maxSenses: maxSenses)) }
+                }.value
+                guard self.pendingTerm == term else { return }
+                self.found = found
                 self.onChange?()
             }
         }

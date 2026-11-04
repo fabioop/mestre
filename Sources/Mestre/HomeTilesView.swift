@@ -50,13 +50,9 @@ struct HomeTilesView: View {
 
     // MARK: Tiles
 
-    private func shape(_ radius: CGFloat? = nil) -> RoundedRectangle {
-        RoundedRectangle(cornerRadius: radius ?? style.tileRadius, style: .continuous)
-    }
+    private func shape(_ radius: CGFloat? = nil) -> RoundedRectangle { style.tileShape(radius) }
 
-    private func ink(of tile: (fill: Color, ink: Color?)) -> AnyShapeStyle {
-        tile.ink.map { AnyShapeStyle($0) } ?? style.ink
-    }
+    private func ink(of tile: (fill: Color, ink: Color?)) -> AnyShapeStyle { style.ink(of: tile) }
 
     private var clock: some View {
         let tile = style.tile(0)

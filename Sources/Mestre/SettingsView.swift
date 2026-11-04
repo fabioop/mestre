@@ -169,7 +169,7 @@ struct ResetSection: View {
     private var canUndo: Bool { settings.resetUndo?.id == id }
 
     private var message: String {
-        let keeps = "Your quicklinks, snippets, scripts, aliases and clipboard history stay."
+        let keeps = "Your quicklinks, snippets, aliases and clipboard history stay."
         switch page {
         case nil: return "Every setting goes back to its default, including the technical ones in the file. \(keeps)"
         case .features: return "Every feature goes back to on, with its default options, including the technical ones in the file. Your snippets and clipboard history stay."
@@ -628,7 +628,6 @@ private struct LibraryPage: View {
             switch section {
             case .quicklinks: QuicklinksSection(settings: settings)
             case .snippets: SnippetsSection(settings: settings)
-            case .scripts: ScriptsSection(settings: settings)
             case .aliases: AliasesSection(settings: settings, apps: viewModel.apps)
             }
         }
@@ -664,33 +663,6 @@ private struct SnippetsSection: View {
                 }
             }
             Caption("Text can include {date}, {time}, {datetime}, {clipboard}, {uuid} and {cursor}.")
-        }
-    }
-}
-
-private struct ScriptsSection: View {
-    @ObservedObject var settings: ConfigStore
-
-    var body: some View {
-        Section("Scripts") {
-            Toggle("Run scripts", isOn: $settings.config.scripts.enabled)
-            ItemListEditor(items: $settings.config.scripts.items, addTitle: "Add Script", template: { ScriptFilter(name: $0, keyword: $0.lowercased().filter { $0.isLetter || $0.isNumber }, command: "") }) { script, nameTaken in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        CommittedField(value: script.name, render: { $0 }, parse: { nameTaken($0) ? nil : $0 }, placeholder: "Name", width: 180)
-                        CommittedField(value: script.keyword, render: { $0 }, parse: { $0.lowercased().nilIfEmpty }, placeholder: "keyword", width: 90)
-                        Picker("", selection: script.mode) {
-                            Text("Once").tag(ScriptFilter.Mode.once)
-                            Text("Every keystroke").tag(ScriptFilter.Mode.perKeystroke)
-                        }
-                        .labelsHidden()
-                        .frame(width: 140)
-                    }
-                    CommittedField(value: script.command, render: { $0 }, parse: { $0 }, placeholder: "~/bin/script.sh", width: 420)
-                    CommittedField(value: script.action, render: { $0 }, parse: { $0 }, placeholder: "On Return (optional)", width: 420)
-                }
-            }
-            Caption("A script prints script-filter JSON: {\"items\": [{\"title\", \"subtitle\", \"arg\"}]}. Wait times and permissions are in the file.")
         }
     }
 }

@@ -33,6 +33,13 @@ public enum Calculator {
         evaluate(lowercased: text.trimmingCharacters(in: .whitespaces).lowercased())
     }
 
+    /// The value of `text` even when nothing was computed: the "10" in "10 km".
+    static func amount(lowercased text: String) -> Double? {
+        var parser = Parser(text)
+        guard let value = try? parser.parseExpression(), parser.atEnd, value.isFinite else { return nil }
+        return value
+    }
+
     /// Formats like a person would type it: up to `precision` significant digits, no trailing zeros.
     public static func format(_ value: Double, precision: Int = 10) -> String {
         if value == value.rounded(), abs(value) < 1e15 { return String(Int64(value)) }

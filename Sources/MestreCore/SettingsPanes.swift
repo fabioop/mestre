@@ -17,6 +17,16 @@ public struct SettingsPane: Equatable, Sendable, Identifiable {
     }
 }
 
+public extension SettingsPane {
+    static let internetAccounts = SettingsPane(bundleIdentifier: "com.apple.Internet-Accounts-Settings.extension", title: "Internet Accounts")
+    static let languageAndRegion = SettingsPane(bundleIdentifier: "com.apple.Localization-Settings.extension", title: "Language & Region")
+
+    /// Privacy & Security, opened on one list: "Privacy_Calendars", "Privacy_Accessibility".
+    static func privacyURL(_ anchor: String) -> URL {
+        URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)")!
+    }
+}
+
 /// Finds the panes System Settings itself loads: the extensions under
 /// /System/Library/ExtensionKit/Extensions with the Settings UI extension point.
 /// Titles come from the bundle identifier, which is stable across languages.

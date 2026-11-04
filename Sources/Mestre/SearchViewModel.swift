@@ -6,7 +6,18 @@ import SwiftUI
 @MainActor
 final class SearchViewModel: ObservableObject {
     @Published var query = "" {
-        didSet { if query != oldValue { search() } }
+        didSet {
+            // Typing, clearing or closing the panel ends the paste.
+            if pastedText != nil, pastedText != query.trimmingCharacters(in: .whitespacesAndNewlines) { pastedText = nil }
+            if query != oldValue { search() }
+        }
+    }
+    /// What ⌘V last put in the field. The query counts as pasted while it is exactly that text.
+    private var pastedText: String?
+
+    /// Called by the panel just before ⌘V reaches the field.
+    func willPaste() {
+        pastedText = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     /// A feature or quicklink turned into a chip before the field: its completion is
     /// prepended to what is typed, so providers see the same keyword query as before.
@@ -55,6 +66,8 @@ final class SearchViewModel: ObservableObject {
     @Published var style = PanelStyle()
     /// The empty query is drawn as tiles (`home.layout`). Off, none of the tile code runs.
     @Published private(set) var isTilesHome = false
+    /// A definition drawn as cards instead of rows (`dictionary.cards`). Parsed once per search, not per render.
+    @Published private(set) var definitionCard: DictionaryEntry?
     @Published private(set) var tileInfo = HomeTileInfo()
     /// Rows at the start of `results` that are recent apps; the rest are item tiles.
     private(set) var tileRecentCount = 0
@@ -185,8 +198,9 @@ final class SearchViewModel: ObservableObject {
     let files = FileProvider()
     let paths = PathProvider()
     let dictionary = DictionaryProvider()
+    let calendar = CalendarProvider()
+    let translator = TranslatorProvider()
     let bookmarks = BookmarkProvider()
-    let scripts = ScriptProvider()
     let colors = ColorProvider()
     private(set) var providers: [any ResultProvider] = []
     private var cancellables = Set<AnyCancellable>()
@@ -195,7 +209,8 @@ final class SearchViewModel: ObservableObject {
     var onDismiss: (() -> Void)?
 
     init() {
-        providers = [calculator, colors, processes, keepAwake, bluetooth, clipboard, emoji, files, paths, dictionary, bookmarks, scripts, quicklinks, snippets, apps, openWindows, commands, windows, settingsPanes, shortcuts, web, homeScreen]
+        // Quicklinks before calendar and translator: a quicklink the user gave "tr" or "cal" keeps it.
+        providers = [calculator, colors, processes, keepAwake, bluetooth, clipboard, emoji, files, paths, dictionary, quicklinks, calendar, translator, bookmarks, snippets, apps, openWindows, commands, windows, settingsPanes, shortcuts, web, homeScreen]
         snippets.paster = clipboard.paster
         emoji.paster = clipboard.paster
         for provider in providers {
@@ -214,7 +229,7 @@ final class SearchViewModel: ObservableObject {
     }
 
     func search(keepSelection: Bool = false) {
-        let parsed = Query(effectiveQuery)
+        let parsed = Query(effectiveQuery, isPasted: scope == nil && pastedText != nil && pastedText == query.trimmingCharacters(in: .whitespacesAndNewlines))
         let previous = keepSelection ? selected.map { "\($0.id)#\($0.item.actions.count)" } : nil
         let owner = parsed.isEmpty ? nil : providers.first { $0.owns(parsed) }
         // Before the results: the panel measures itself when they change.
@@ -237,6 +252,9 @@ final class SearchViewModel: ObservableObject {
             if merged.count > maxResults { merged.remove(at: max(0, merged.count - 1 - fallback.count)) }
             return merged
         }
+        // Cards only for "define …": a pasted word's rows sit above the others, which stay in sight.
+        let card = owner === dictionary ? results.first.flatMap { dictionary.card(for: $0.item) } : nil
+        if card != definitionCard { definitionCard = card }
         selectedIndex = keepSelection ? min(selectedIndex, max(0, results.count - 1)) : 0
         // A background refresh keeps the menu open as long as it still shows the same item.
         if !keepSelection || previous != selected.map({ "\($0.id)#\($0.item.actions.count)" }) { closeActions() }
@@ -405,8 +423,7 @@ final class SearchViewModel: ObservableObject {
     /// A completion from a feature or quicklink row: a scope chip (`panel.completion: scope`),
     /// or the text in the field.
     func complete(with completion: String) {
-        // Only a feature or quicklink becomes a chip; a folder path or a script's
-        // autocomplete is text the user goes on editing.
+        // Only a feature or quicklink becomes a chip; a folder path is text the user goes on editing.
         guard layout.completion == .scope, !completion.isEmpty, let scope = scope(for: completion) else {
             query = completion
             return
@@ -445,13 +462,10 @@ final class SearchViewModel: ObservableObject {
         return true
     }
 
-    /// ⇥: a row that completes (a script's `autocomplete`) completes; a feature or quicklink row
-    /// becomes the scope; any other row unfolds its actions.
+    /// ⇥: a feature or quicklink row becomes the scope; any other row unfolds its actions.
     func completeOrUnfold() {
         guard let selected else { return }
-        if let autocomplete = selected.item.action(id: "autocomplete") {
-            run(autocomplete)
-        } else if let feature = (selected.item as? FeatureItem)?.feature, !feature.completion.isEmpty {
+        if let feature = (selected.item as? FeatureItem)?.feature, !feature.completion.isEmpty {
             complete(with: feature.completion)
         } else if let link = selected.item as? QuicklinkItem, link.needsQuery {
             complete(with: link.link.completionPrefix)

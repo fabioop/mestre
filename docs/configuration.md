@@ -61,7 +61,12 @@ and reloads it as soon as you save it in an editor. Every key is optional.
   },
   "calculator": {
     "enabled": true,
-    "precision": 10
+    "precision": 10,
+    "units": true,
+    "currency": true,
+    "defaultCurrency": "",
+    "ratesMaxAgeHours": 24,
+    "ratesURL": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
   },
   "commands": {
     "enabled": true,
@@ -150,7 +155,27 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "enabled": true,
     "keyword": "define",
     "maxLines": 6,
-    "debounceSeconds": 0.15
+    "debounceSeconds": 0.15,
+    "onPaste": true,
+    "cards": true,
+    "cardSenses": 4
+  },
+  "calendar": {
+    "enabled": true,
+    "keyword": "cal",
+    "daysAhead": 7,
+    "maxResults": 20,
+    "excludeCalendars": [],
+    "mergeDuplicates": true,
+    "countdownMinutes": 60,
+    "meetingHosts": ["zoom.us", "zoomgov.com", "meet.google.com", "teams.microsoft.com", "teams.cloud.microsoft", "teams.live.com", "teams.microsoft.us", "webex.com", "facetime.apple.com", "whereby.com"]
+  },
+  "translator": {
+    "enabled": true,
+    "keyword": "tr",
+    "languages": [],
+    "debounceSeconds": 0.3,
+    "maxCharacters": 2000
   },
   "files": {
     "enabled": true,
@@ -168,9 +193,6 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "listWindows": true,
     "listRefreshSeconds": 2
   },
-  "scripts": { "enabled": true, "items": [
-    { "name": "Notes", "keyword": "nt", "command": "~/bin/notes.sh", "mode": "once", "needs": ["fs:~/Notes"] }
-  ] },
   "updates": { "check": true, "channel": "stable", "intervalHours": 24 },
   "onboarding": { "showWelcome": true },
   "debug": {
@@ -190,12 +212,11 @@ what most people change. Technical keys live only in the file: wait times and po
 `search.scanDepth`, `search.watchFolders`, `search.refreshIntervalSeconds`, `ranking.runningBoost`,
 `ranking.systemAppPenalty`, `ranking.providers`, `ranking.budgetMs`, `quickKeys.keys`,
 `clipboard.maxTextBytes`, `clipboard.pollIntervalSeconds`, `files.debounceSeconds`, `files.minimumLength`,
-`dictionary.debounceSeconds`, `bookmarks.minimumLength`, `bookmarks.penalty`, `paste`,
-`shortcuts.refreshIntervalSeconds`, `windows.listRefreshSeconds`, `emoji.prefix`, script timings and
-`needs`, `updates`, and `debug`.
+`dictionary.debounceSeconds`, `calculator.ratesMaxAgeHours`, `calculator.ratesURL`, `calendar.maxResults`, `calendar.meetingHosts`, `translator.debounceSeconds`, `translator.maxCharacters`, `bookmarks.minimumLength`, `bookmarks.penalty`, `paste`,
+`shortcuts.refreshIntervalSeconds`, `windows.listRefreshSeconds`, `emoji.prefix`, `updates`, and `debug`.
 
 Each Settings page has a reset button, and General can reset everything. Resets keep your quicklinks,
-snippets, scripts, aliases and how much clipboard history is kept, and save the previous file as `config.backup.json`, which Undo puts back.
+snippets, aliases and how much clipboard history is kept, and save the previous file as `config.backup.json`, which Undo puts back.
 
 `startup.launchAtLogin` registers Mestre as a login item when the file is read. Left out, it keeps
 whatever macOS has now.
@@ -223,7 +244,7 @@ Without `--default` it prints the settings in force.
   `window:<layout>`, or `feature:<id>`. An app opens or comes forward without showing the panel;
   `feature:<id>` opens the panel on that feature and closes it when pressed again, e.g.
   `"hyper+v": "feature:clipboard"`. Feature ids: `clipboard`, `emoji`, `files`, `paths`,
-  `bookmarks`, `dictionary`, `keepAwake`, `bluetooth`, `processes`, `colors`, `windows`. Shortcuts another
+  `bookmarks`, `dictionary`, `calendar`, `translator`, `keepAwake`, `bluetooth`, `processes`, `colors`, `windows`. Shortcuts another
   app already owns are reported in Settings.
 - `keys`: overrides for what each key does inside the panel, in the same combo format as
   `hotKey`, e.g. `"keys": {"moveUp": ["up", "ctrl+k"], "quit": "cmd+w"}`. Names come from one
@@ -248,19 +269,6 @@ Without `--default` it prints the settings in force.
   brings up its row, then ↩ runs it. A key you set in `keys` goes first; a generated key goes
   first unless another row's name starts with those letters, so "sl" keeps Slack on top and
   never sleeps the Mac by surprise. `enabled: false` hides them.
-- `scripts`: keyword-triggered scripts that print rows as script-filter JSON
-  (`{"items": [{"title", "subtitle", "arg", "uid", "icon": {"path"}, "valid", "autocomplete",
-  "match"}], "rerun"}`), the format many launcher scripts already print, so they port unchanged. Each item has `name`, `keyword`,
-  `command` (an executable, run with the query as its argument; or a shell line when it contains
-  a space, run as written with the query in `$1` and `MESTRE_QUERY` for it to use or ignore), `mode` (`once`: run when the keyword is entered, Mestre filters the rows as
-  you type by `match` or title; `perKeystroke`: run on every change after `debounceMs`),
-  `cacheSeconds` (reuse the last rows between sessions), `action` (a command run on Return
-  with the row's `arg` as `$1`; otherwise a URL or path argument opens and anything else is
-  copied; a path to an app bundle or an executable is copied too, never launched), `needs`
-  (what it touches, shown as chips: `clipboard`, `fs:~/Documents`, `network`) and
-  `timeoutSeconds` (a longer run gets SIGTERM, then SIGKILL; default 10). A script may print
-  up to 500 rows and 4 MB; while a newer run is in flight the last rows stay. Scripts run off the main
-  thread; a run that fails, prints something else or times out says so in the panel.
 - `panel`: geometry and look. `verticalPosition` is the top edge as a fraction of screen
   height; `material` is `glass` (Liquid Glass, macOS 26), `clearGlass`, or one of the classic
   blurs `popover`, `hud`, `sidebar`, `menu`, `window`, `none`.
@@ -363,8 +371,23 @@ Without `--default` it prints the settings in force.
   when the panel opens and they changed since; Firefox's database is read in place.
 - `onboarding`: `showWelcome` — the welcome window at launch. The app turns it off after the
   first time; the status menu's "Welcome Guide" and setting it back to `true` show it again.
-- `dictionary`: `enabled`, `keyword`, `maxLines`, `debounceSeconds`. Uses the dictionaries
-  enabled in Dictionary.app; lookups run off the main thread after the pause.
+- `dictionary`: `enabled`, `keyword`, `maxLines`, `debounceSeconds`, `onPaste`, `cards`, `cardSenses`. Uses the dictionaries
+  enabled in Dictionary.app; lookups run off the main thread after the pause. With `onPaste`, pasting a
+  single word (the whole field) shows its definition above every other result, without the keyword;
+  typing it doesn't. With `cards`, `define <word>` shows the definition as cards in either home layout:
+  the word and its pronunciation, then up to `cardSenses` senses (1–6) with an example each, and the origin.
+- `calendar`: `enabled`, `keyword`, `daysAhead`, `maxResults`, `excludeCalendars` (`"Name"` in every
+  account, or `"Account/Name"`), `mergeDuplicates` (an invitation in several accounts shows once), `countdownMinutes` (events starting
+  within it say "in 20 min"; 0 turns it off) and
+  `meetingHosts` (links that count as an event's meeting, also inside Outlook Safe Links). Events come from
+  every account in System Settings › Internet Accounts: iCloud, Google, Microsoft 365 and Exchange (where
+  Teams meetings live), Yahoo and CalDAV. An account's name also filters: `cal work`. `cal ` lists what's coming and more words
+  filter it; `cal` with no space still finds the Calendar app. Return joins the meeting, or else opens the event.
+  macOS asks for access the first time. Events are read off the main thread and again only when the calendars change.
+- `translator`: `enabled`, `keyword`, `languages`, `debounceSeconds`, `maxCharacters`. `tr hello` goes to
+  the first of `languages` it isn't already in; empty uses the Mac's languages, then English.
+  `tr >de hello` picks the target and `tr en>pt hello` both sides. Needs macOS 26. Translation is
+  on-device and uses languages downloaded in System Settings › General › Language & Region › Translation Languages.
 - `paths`: `enabled`, `showHidden` (dot files; typing a `.` prefix shows them anyway) and
   `maxResults` for folder browsing. Folders list before files; packages (.app) open like files. Listings are read off the main thread and cached for a few seconds.
 - `files`: `enabled`, `keyword`, `folders` searched, `excludedFolders`, `maxResults`,
@@ -380,6 +403,11 @@ Without `--default` it prints the settings in force.
   previousDisplay.
 - `calculator`: `enabled` and `precision` (significant digits). A comma followed by three
   digits is a thousands separator; otherwise it is a decimal point (`3,5*2` = 7).
+  `units` turns on `10 km to mi` and `72f in c` (also `in`, `as`, `em`, `para`) for length, mass, temperature,
+  volume, area, speed, data and time. `currency` turns on `100 usd to eur`; `100 usd` alone goes to
+  `defaultCurrency`, or the Mac's region when that is empty, and shows nothing when that currency has no reference rate. Rates come from `ratesURL`, in the European Central
+  Bank's format, and are downloaded only after such a query is typed, at most once per `ratesMaxAgeHours`.
+  The cached copy is used when offline, and the row says which day its rates are from.
 - `includeSystemApps`: on by default, so Safari, Mail and the rest of /System/Applications
   come up alongside the apps you installed. Turn it off to search only `appDirectories`.
 - `ranking.systemAppPenalty`: points taken off Apple's built-in apps, enough to settle a

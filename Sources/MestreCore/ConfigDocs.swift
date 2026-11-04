@@ -18,7 +18,7 @@ public enum ConfigDocs {
         case .home: return "What an empty query shows: a list (recent, features, commands; hidden ids) or tiles."
         case .search: return "Where apps are found and how many results exist."
         case .ranking: return "Usage weight, running boost, built-in app penalty, provider weights, per-provider time budget."
-        case .calculator: return "Expressions typed straight into the panel."
+        case .calculator: return "Expressions and conversions typed straight into the panel: units, currency and exchange rates."
         case .commands: return "System commands: on/off, confirmation, hidden ids."
         case .settingsPanes: return "System Settings panes as results."
         case .processes: return "kill <name>: running processes by memory."
@@ -34,9 +34,10 @@ public enum ConfigDocs {
         case .files: return "file <name>: Spotlight search in chosen folders."
         case .paths: return "~/ and /: browse folders."
         case .dictionary: return "define <word>."
+        case .calendar: return "cal <text>: upcoming events from every macOS calendar account: days ahead, calendars left out, duplicates, meeting links."
+        case .translator: return "tr <text>: on-device translation, target languages."
         case .bookmarks: return "Browser bookmarks: bm <text>."
         case .colors: return "Colour conversion rows."
-        case .scripts: return "Keyword → a command that prints JSON rows; once or per keystroke."
         case .startup: return "Launch at login; missing leaves what macOS has."
         case .updates: return "In-app updates: scheduled checks, stable or beta channel, interval, feed."
         case .onboarding: return "The welcome window."
@@ -72,10 +73,17 @@ public enum ConfigDocs {
         diff(try object(config), defaultsObject)
     }
 
-    /// `changes` as the file: `notes` (the `_…` keys of the existing file) first, then each
-    /// changed section in the file's order.
+    /// `changes` as the file: `notes` (see `notes(in:)`) first, then each changed section in
+    /// the file's order.
     public static func file(changes: [String: Any], notes: [String: Any]) -> String {
         render(changes, notes: notes)
+    }
+
+    /// What a save must carry over from the existing file: the `_…` notes, and any top-level
+    /// section this build doesn't know (one a later version added, or one that was removed,
+    /// like `scripts`), so writing a setting never deletes what the user wrote there.
+    public static func notes(in file: [String: Any]) -> [String: Any] {
+        file.filter { $0.key.hasPrefix("_") || Config.CodingKeys(rawValue: $0.key) == nil }
     }
 
     static func object(_ config: Config) throws -> [String: Any] {
@@ -99,7 +107,7 @@ public enum ConfigDocs {
     /// Notes first, then each section in `Config.CodingKeys` order, each on its own lines.
     private static func render(_ sections: [String: Any], notes: [String: Any] = [:], docs: Bool = false) -> String {
         var lines: [String] = []
-        for (key, value) in notes.sorted(by: { $0.key < $1.key }) where key.hasPrefix("_") {
+        for (key, value) in notes.sorted(by: { $0.key < $1.key }) where Config.CodingKeys(rawValue: key) == nil {
             lines.append("  \"\(key)\": " + json(value) + ",")
         }
         for key in Config.CodingKeys.allCases {

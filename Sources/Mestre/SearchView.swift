@@ -54,6 +54,12 @@ struct SearchView: View {
                 if style.field == nil { PanelDivider() }
                 if viewModel.isTilesHome {
                     HomeTilesView(viewModel: viewModel).padding(8)
+                } else if let entry = viewModel.definitionCard {
+                    DefinitionCards(entry: entry, width: layout.width - 16) {
+                        viewModel.selectedIndex = 0
+                        viewModel.runDefaultAction()
+                    }
+                    .padding(8)
                 } else {
                     resultsList
                 }

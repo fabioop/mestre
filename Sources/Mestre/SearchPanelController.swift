@@ -10,6 +10,8 @@ final class SearchPanel: NSPanel {
     /// Return true to swallow a key-down event. Runs before the field editor, so
     /// bound keys (arrows, Return, ⌘Q…) never reach the text field.
     var onKeyDown: ((NSEvent) -> Bool)?
+    /// Called just before ⌘V reaches the field.
+    var onPaste: (() -> Void)?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
@@ -17,6 +19,18 @@ final class SearchPanel: NSPanel {
     override func sendEvent(_ event: NSEvent) {
         if event.type == .keyDown, !isComposingText, onKeyDown?(event) == true { return }
         super.sendEvent(event)
+    }
+
+    /// ⌘ keys arrive here before `sendEvent`. Bound keys still win; then the text-editing
+    /// shortcuts, which the panel can't get from the Edit menu: the app has none showing, and
+    /// a non-activating panel isn't served by the main menu anyway.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if !isComposingText, onKeyDown?(event) == true { return true }
+        if let action = EditShortcut.action(for: event) {
+            if action == #selector(NSText.paste(_:)) { onPaste?() }
+            if NSApp.sendAction(action, to: nil, from: self) { return true }
+        }
+        return super.performKeyEquivalent(with: event)
     }
 
     /// While an input method (Japanese, Chinese…) is composing, Return and Escape
@@ -50,6 +64,7 @@ final class SearchPanelController: NSObject, NSWindowDelegate {
         configurePanel()
 
         viewModel.onDismiss = { [weak self] in self?.hide() }
+        panel.onPaste = { [weak viewModel] in viewModel?.willPaste() }
         panel.onKeyDown = { [weak viewModel] event in
             guard let viewModel, let binding = viewModel.bindings.binding(for: event) else { return false }
             return viewModel.perform(binding)

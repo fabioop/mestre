@@ -173,6 +173,18 @@ import Testing
 }
 
 @Suite struct DebugConfigTests {
+    @Test func aFileWithTheRemovedScriptsSectionStillLoads() throws {
+        let json = #"{"hotKey": "cmd+space", "scripts": {"enabled": true, "items": [{"name": "A", "keyword": "a", "command": "x"}]}}"#
+        let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+        #expect(config.hotKey.configString == "cmd+space")
+        // A save carries the section over instead of deleting what the user wrote.
+        let file = try #require(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        let notes = ConfigDocs.notes(in: file)
+        #expect(notes.keys.sorted() == ["scripts"])
+        let saved = try #require(try JSONSerialization.jsonObject(with: Data(ConfigDocs.file(changes: [:], notes: notes).utf8)) as? [String: Any])
+        #expect((saved["scripts"] as? [String: Any])?["enabled"] as? Bool == true)
+    }
+
     @Test func updatesDefaultToStableDailyChecks() throws {
         let defaults = Config().updates
         #expect(defaults.check && defaults.channel == .stable && defaults.intervalHours == 24 && defaults.feedURL == nil)
@@ -301,10 +313,11 @@ import Testing
         #expect(Set(changes.keys) == ["panel", "aliases"])
         #expect((changes["panel"] as? [String: Any])?.keys.sorted() == ["width"])
         #expect(try ConfigDocs.changes(in: Config()).isEmpty)
-        let file = ConfigDocs.file(changes: changes, notes: ["_": "note", "ignored": 1])
-        #expect(file.contains("\"_\": \"note\""))
+        // A section this build doesn't know is kept; a known one in the notes never overrides the settings.
+        let file = ConfigDocs.file(changes: changes, notes: ["_": "note", "kept": 1, "panel": ["width": 1]])
+        #expect(file.contains("\"_\": \"note\"") && file.contains("\"kept\": 1"))
         let decoded = try JSONDecoder().decode(Config.self, from: Data(file.utf8))
-        #expect(decoded == config && !file.contains("ignored"))
+        #expect(decoded == config)
         #expect(file.range(of: "\"_\"")!.lowerBound < file.range(of: "\"panel\"")!.lowerBound)
     }
 }

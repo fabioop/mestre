@@ -37,7 +37,7 @@ final class WindowManager {
     }
 
     static func openAccessibilitySettings() {
-        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
+        NSWorkspace.shared.open(SettingsPane.privacyURL("Privacy_Accessibility"))
     }
 
     func apply(_ layout: WindowLayout) throws {

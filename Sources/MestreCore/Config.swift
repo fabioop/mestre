@@ -322,15 +322,30 @@ public struct Config: Codable, Equatable, Sendable {
         public var enabled: Bool = true
         /// Significant digits shown and copied (1–17).
         public var precision: Int = 10
+        /// `10 km to mi`, `72f in c`.
+        public var units: Bool = true
+        /// `100 usd to eur`. Rates are downloaded only once such a query is typed.
+        public var currency: Bool = true
+        /// What `100 usd` converts to with no target. Empty uses the Mac's region.
+        public var defaultCurrency: String = ""
+        /// Rates older than this are downloaded again when next needed.
+        public var ratesMaxAgeHours: Double = 24
+        /// The European Central Bank's daily file, or anything in its format.
+        public var ratesURL: String = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
 
         public init() {}
 
-        enum CodingKeys: String, CodingKey { case enabled, precision }
+        enum CodingKeys: String, CodingKey { case enabled, precision, units, currency, defaultCurrency, ratesMaxAgeHours, ratesURL }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
             precision = min(17, max(1, try c.decodeIfPresent(Int.self, forKey: .precision) ?? precision))
+            units = try c.decodeIfPresent(Bool.self, forKey: .units) ?? units
+            currency = try c.decodeIfPresent(Bool.self, forKey: .currency) ?? currency
+            defaultCurrency = try c.decodeIfPresent(String.self, forKey: .defaultCurrency) ?? defaultCurrency
+            ratesMaxAgeHours = max(1, try c.decodeIfPresent(Double.self, forKey: .ratesMaxAgeHours) ?? ratesMaxAgeHours)
+            ratesURL = try c.decodeIfPresent(String.self, forKey: .ratesURL) ?? ratesURL
         }
     }
 
@@ -659,10 +674,16 @@ public struct Config: Codable, Equatable, Sendable {
         public var maxLines: Int = 6
         /// Pause after the last keystroke before the dictionary is asked (a lookup takes ~20 ms).
         public var debounceSeconds: Double = 0.15
+        /// A single pasted word shows its definition first, without the keyword.
+        public var onPaste: Bool = true
+        /// A definition is drawn as cards instead of rows.
+        public var cards: Bool = true
+        /// Senses shown as cards (1–6); more would push the panel past the screen.
+        public var cardSenses: Int = 4
 
         public init() {}
 
-        enum CodingKeys: String, CodingKey { case enabled, keyword, maxLines, debounceSeconds }
+        enum CodingKeys: String, CodingKey { case enabled, keyword, maxLines, debounceSeconds, onPaste, cards, cardSenses }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -670,6 +691,67 @@ public struct Config: Codable, Equatable, Sendable {
             keyword = try c.decodeKeyword(forKey: .keyword, default: keyword)
             maxLines = min(20, max(1, try c.decodeIfPresent(Int.self, forKey: .maxLines) ?? maxLines))
             debounceSeconds = min(2, max(0, try c.decodeIfPresent(Double.self, forKey: .debounceSeconds) ?? debounceSeconds))
+            onPaste = try c.decodeIfPresent(Bool.self, forKey: .onPaste) ?? onPaste
+            cards = try c.decodeIfPresent(Bool.self, forKey: .cards) ?? cards
+            cardSenses = min(6, max(1, try c.decodeIfPresent(Int.self, forKey: .cardSenses) ?? cardSenses))
+        }
+    }
+
+    /// Upcoming events: "cal", then a space. Reads the calendars macOS knows about.
+    public struct CalendarEvents: Codable, Equatable, Sendable {
+        public var enabled: Bool = true
+        public var keyword: String = "cal"
+        /// How far ahead events are listed.
+        public var daysAhead: Int = 7
+        public var maxResults: Int = 20
+        /// Calendars left out, as "Name" (every account) or "Account/Name".
+        public var excludeCalendars: [String] = []
+        /// One invitation in several accounts shows once.
+        public var mergeDuplicates: Bool = true
+        /// Events starting within this many minutes say "in 20 min"; 0 turns it off.
+        public var countdownMinutes: Int = 60
+        /// Links in an event that count as its meeting, by host. Return joins it.
+        public var meetingHosts: [String] = ["zoom.us", "zoomgov.com", "meet.google.com", "teams.microsoft.com", "teams.cloud.microsoft", "teams.live.com", "teams.microsoft.us", "webex.com", "facetime.apple.com", "whereby.com"]
+
+        public init() {}
+
+        enum CodingKeys: String, CodingKey { case enabled, keyword, daysAhead, maxResults, excludeCalendars, mergeDuplicates, countdownMinutes, meetingHosts }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
+            keyword = try c.decodeKeyword(forKey: .keyword, default: keyword)
+            daysAhead = min(90, max(1, try c.decodeIfPresent(Int.self, forKey: .daysAhead) ?? daysAhead))
+            maxResults = min(100, max(1, try c.decodeIfPresent(Int.self, forKey: .maxResults) ?? maxResults))
+            excludeCalendars = try c.decodeIfPresent([String].self, forKey: .excludeCalendars) ?? excludeCalendars
+            mergeDuplicates = try c.decodeIfPresent(Bool.self, forKey: .mergeDuplicates) ?? mergeDuplicates
+            countdownMinutes = min(24 * 60, max(0, try c.decodeIfPresent(Int.self, forKey: .countdownMinutes) ?? countdownMinutes))
+            meetingHosts = try c.decodeIfPresent([String].self, forKey: .meetingHosts) ?? meetingHosts
+        }
+    }
+
+    /// "tr hello": on-device translation with the languages installed in macOS.
+    public struct Translator: Codable, Equatable, Sendable {
+        public var enabled: Bool = true
+        public var keyword: String = "tr"
+        /// Text goes to the first of these it isn't already in. Empty uses the Mac's languages, then English.
+        public var languages: [String] = []
+        /// Pause after the last keystroke before translating.
+        public var debounceSeconds: Double = 0.3
+        /// Longer text isn't translated from the panel.
+        public var maxCharacters: Int = 2000
+
+        public init() {}
+
+        enum CodingKeys: String, CodingKey { case enabled, keyword, languages, debounceSeconds, maxCharacters }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
+            keyword = try c.decodeKeyword(forKey: .keyword, default: keyword)
+            languages = try c.decodeIfPresent([String].self, forKey: .languages) ?? languages
+            debounceSeconds = min(2, max(0, try c.decodeIfPresent(Double.self, forKey: .debounceSeconds) ?? debounceSeconds))
+            maxCharacters = min(20_000, max(1, try c.decodeIfPresent(Int.self, forKey: .maxCharacters) ?? maxCharacters))
         }
     }
 
@@ -752,26 +834,6 @@ public struct Config: Codable, Equatable, Sendable {
             logTimings = try c.decodeIfPresent(Bool.self, forKey: .logTimings) ?? logTimings
         }
     }
-
-    /// Keyword-triggered scripts that print rows (M2); see `ScriptFilter`.
-    public struct Scripts: Codable, Equatable, Sendable {
-        public var enabled: Bool = true
-        public var items: [ScriptFilter] = []
-
-        public init() {}
-
-        enum CodingKeys: String, CodingKey { case enabled, items }
-
-        public init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
-            // A repeated name or keyword keeps the first: both are identities.
-            var names = Set<String>(), keywords = Set<String>()
-            items = (try c.decodeIfPresent([ScriptFilter].self, forKey: .items) ?? [])
-                .filter { !$0.keyword.isEmpty && names.insert($0.name).inserted && keywords.insert($0.keyword).inserted }
-        }
-    }
-    public var scripts = Scripts()
 
     public struct Startup: Codable, Equatable, Sendable {
         /// Registers Mestre as a login item, so the choice moves with the file. Nil leaves
@@ -879,6 +941,8 @@ public struct Config: Codable, Equatable, Sendable {
     public var files = Files()
     public var paths = Paths()
     public var dictionary = DictionaryLookup()
+    public var calendar = CalendarEvents()
+    public var translator = Translator()
     public var bookmarks = Bookmarks()
     public var colors = Colors()
     public var startup = Startup()
@@ -901,7 +965,7 @@ public struct Config: Codable, Equatable, Sendable {
     }
 
     /// Every top-level section, in the file's order; `ConfigDocs` documents each one.
-    public enum CodingKeys: String, CodingKey, CaseIterable { case hotKey, hotkeys, keys, aliases, quicklinks, quickKeys, panel, home, search, ranking, calculator, commands, settingsPanes, processes, keepAwake, bluetooth, shortcuts, webSearch, windows, clipboard, snippets, paste, emoji, files, paths, dictionary, bookmarks, colors, scripts, startup, updates, onboarding, debug }
+    public enum CodingKeys: String, CodingKey, CaseIterable { case hotKey, hotkeys, keys, aliases, quicklinks, quickKeys, panel, home, search, ranking, calculator, commands, settingsPanes, processes, keepAwake, bluetooth, shortcuts, webSearch, windows, clipboard, snippets, paste, emoji, files, paths, dictionary, calendar, translator, bookmarks, colors, startup, updates, onboarding, debug }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -936,9 +1000,10 @@ public struct Config: Codable, Equatable, Sendable {
         files = try c.decodeIfPresent(Files.self, forKey: .files) ?? Files()
         paths = try c.decodeIfPresent(Paths.self, forKey: .paths) ?? Paths()
         dictionary = try c.decodeIfPresent(DictionaryLookup.self, forKey: .dictionary) ?? DictionaryLookup()
+        calendar = try c.decodeIfPresent(CalendarEvents.self, forKey: .calendar) ?? CalendarEvents()
+        translator = try c.decodeIfPresent(Translator.self, forKey: .translator) ?? Translator()
         bookmarks = try c.decodeIfPresent(Bookmarks.self, forKey: .bookmarks) ?? Bookmarks()
         colors = try c.decodeIfPresent(Colors.self, forKey: .colors) ?? Colors()
-        scripts = try c.decodeIfPresent(Scripts.self, forKey: .scripts) ?? Scripts()
         startup = try c.decodeIfPresent(Startup.self, forKey: .startup) ?? Startup()
         updates = try c.decodeIfPresent(Updates.self, forKey: .updates) ?? Updates()
         onboarding = try c.decodeIfPresent(Onboarding.self, forKey: .onboarding) ?? Onboarding()
@@ -973,9 +1038,10 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(files, forKey: .files)
         try c.encode(paths, forKey: .paths)
         try c.encode(dictionary, forKey: .dictionary)
+        try c.encode(calendar, forKey: .calendar)
+        try c.encode(translator, forKey: .translator)
         try c.encode(bookmarks, forKey: .bookmarks)
         try c.encode(colors, forKey: .colors)
-        try c.encode(scripts, forKey: .scripts)
         try c.encode(startup, forKey: .startup)
         try c.encode(updates, forKey: .updates)
         try c.encode(onboarding, forKey: .onboarding)
