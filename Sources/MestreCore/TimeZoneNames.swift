@@ -49,12 +49,66 @@ public enum TimeZoneNames {
         return lookup(key, here: here, strict: strict)
     }
 
+    /// Places whose name starts with `prefix` (lowercased), for a name still being typed: one per zone,
+    /// at most `limit`. The user's aliases come first, then well-known places (a nickname, country or
+    /// abbreviation points at them), then the rest; shorter names first. Two letters at least.
+    public static func suggestions(prefix: String, userAliases: [String: Alias] = [:], limit: Int) -> [Place] {
+        let key = prefix.trimmingCharacters(in: .whitespaces)
+        guard limit > 0, key.count >= 2, key.count <= 40 else { return [] }
+        var seen = Set<String>()
+        var result: [Place] = []
+        func add(_ place: Place?) {
+            guard let place, seen.insert(place.zone.identifier).inserted else { return }
+            result.append(place)
+        }
+        for name in userAliases.keys.sorted() where name.hasPrefix(key) {
+            add(place(name, userAliases: userAliases))
+            if result.count == limit { return result }
+        }
+        let folded = fold(key)
+        for entry in prefixIndex where entry.key.hasPrefix(folded) && !seen.contains(entry.identifier) {
+            add(TimeZone(identifier: entry.identifier).map { Place(zone: $0, name: entry.name) })
+            if result.count == limit { break }
+        }
+        return result
+    }
+
+    private struct IndexEntry {
+        let key: String
+        let identifier: String
+        let name: String
+        /// 1 for a city no nickname, country or abbreviation points at.
+        let obscurity: Int
+        /// 1 for a nickname, so a city's own name wins a tie ("lisbon" over "lisboa").
+        let isAlias: Int
+        let length: Int
+    }
+
+    /// Every built-in name and city, in suggestion order: well-known first, then shorter. Built off
+    /// the main thread by `warmUp`.
+    private static let prefixIndex: [IndexEntry] = {
+        let wellKnown = Set(aliases.values)
+        var entries: [IndexEntry] = []
+        for (key, (identifier, city)) in cities where !key.contains("/") && isUnambiguous(identifier) {
+            entries.append(IndexEntry(key: key, identifier: identifier, name: city, obscurity: wellKnown.contains(identifier) ? 0 : 1, isAlias: 0, length: key.count))
+        }
+        for (key, identifier) in aliases {
+            entries.append(IndexEntry(key: key, identifier: identifier, name: displayName(key), obscurity: 0, isAlias: 1, length: key.count))
+        }
+        return entries.sorted { ($0.obscurity, $0.length, $0.isAlias, $0.key) < ($1.obscurity, $1.length, $1.isAlias, $1.key) }
+    }()
+
+    /// Accents off, as the city table is keyed: "são paulo" finds "sao paulo".
+    static func fold(_ text: String) -> String {
+        text.allSatisfy(\.isASCII) ? text : text.folding(options: .diacriticInsensitive, locale: nil)
+    }
+
     private static func lookup(_ key: String, here: TimeZone, strict: Bool) -> Place? {
         if hereWords.contains(key) { return strict ? nil : .here(here) }
         if let identifier = aliases[key], let zone = TimeZone(identifier: identifier) {
             return Place(zone: zone, name: displayName(key))
         }
-        let folded = key.allSatisfy(\.isASCII) ? key : key.folding(options: .diacriticInsensitive, locale: nil)
+        let folded = fold(key)
         if let (identifier, city) = cities[folded], !strict || isUnambiguous(identifier),
            let zone = TimeZone(identifier: identifier) {
             return Place(zone: zone, name: city)
@@ -81,6 +135,7 @@ public enum TimeZoneNames {
     private static let warmedUp: Void = {
         DispatchQueue.global(qos: .utility).async {
             _ = cities.count
+            _ = prefixIndex.count
             for identifier in Set(aliases.values).union(abbreviations.values) { _ = TimeZone(identifier: identifier)?.secondsFromGMT() }
         }
     }()

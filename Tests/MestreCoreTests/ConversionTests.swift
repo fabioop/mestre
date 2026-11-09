@@ -12,6 +12,14 @@ import Testing
         return abs(value - expected) < abs(expected) * 1e-6 + 1e-9
     }
 
+    @Test func readsJSONRateFiles() throws {
+        let jsdelivr = try #require(CurrencyRates.parse(#"{"date":"2026-11-07","eur":{"usd":1.16,"myr":4.9,"1inch":14,"eur":1}}"#))
+        #expect(jsdelivr.date == "2026-11-07" && jsdelivr.rates["MYR"] == 4.9 && jsdelivr.rates["EUR"] == 1 && jsdelivr.rates["1INCH"] == nil)
+        let erAPI = try #require(CurrencyRates.parse(#"{"base_code":"USD","time_last_update_utc":"Sat, 07 Nov 2026","rates":{"EUR":0.86}}"#))
+        #expect(erAPI.rates["USD"] == 1 && erAPI.rates["EUR"] == 0.86)
+        #expect(CurrencyRates.parse(#"{"error":"nope"}"#) == nil)
+    }
+
     @Test func convertsAcrossCategories() {
         #expect(near(convert("10 km to mi"), 6.21371192))
         #expect(near(convert("1 kg in lb"), 2.20462262))
@@ -62,9 +70,64 @@ import Testing
         #expect(UnitConversion.parse(lowercased: "100 brl to eur")?.isImplied == false)
     }
 
+    private func guesses(_ text: String, limit: Int = 6, currencies: [String] = ["eur", "USD", "GBP"]) -> [String] {
+        UnitConversion.suggestions(lowercased: text, currencies: currencies, units: Config.Calculator().suggestedUnits, limit: limit)
+            .map { "\($0.from.symbol)>\($0.to.symbol)" }
+    }
+
+    @Test func aCurrencyBeingTypedSuggestsConversions() {
+        #expect(guesses("15 ringgit") == ["MYR>EUR", "MYR>USD", "MYR>GBP"])
+        #expect(guesses("15 myr") == ["MYR>EUR", "MYR>USD", "MYR>GBP"])
+        #expect(guesses("15 eur") == ["EUR>USD", "EUR>GBP"])
+        #expect(guesses("15 ring") == ["MYR>EUR", "MYR>USD", "MYR>GBP"])
+        #expect(guesses("15 malay").first == "MYR>EUR")
+        #expect(guesses("15 krona") == ["ISK>EUR", "SEK>EUR"])
+        #expect(guesses("15 dol").prefix(2) == ["USD>EUR", "AUD>EUR"])
+        #expect(guesses("15 myr to") == ["MYR>EUR", "MYR>USD", "MYR>GBP"])
+        #expect(guesses("15 myr to e").first == "MYR>EUR")
+        #expect(guesses("15 myr in mx") == ["MYR>MXN"])
+        #expect(guesses("15 myr to usd") == ["MYR>USD"])
+        #expect(UnitConversion.parse(lowercased: "5 ft to in")?.to.symbol == "in")
+        #expect(guesses("15 ringgit", limit: 1) == ["MYR>EUR"])
+        #expect(guesses("15 myr", currencies: ["EUR", "USD", "eur"]).count == 2)
+        #expect(UnitConversion.suggestions(lowercased: "15 myr", currencies: ["EUR"], units: [], limit: 1).first?.isImplied == true)
+        #expect(UnitConversion.suggestions(lowercased: "15 myr to e", currencies: ["EUR"], units: [], limit: 1).first?.isImplied == false)
+    }
+
+    @Test func anyCurrencyInUseIsKnown() {
+        #expect(guesses("100 vnd").first == "VND>EUR")
+        #expect(guesses("100 dong").first == "VND>EUR")
+        #expect(guesses("50 naira").first == "NGN>EUR")
+        #expect(guesses("1 btc").first == "BTC>EUR")
+        #expect(guesses("20 peso").contains("ARS>EUR"))
+    }
+
+    @Test func aMeasureBeingTypedSuggestsConversions() {
+        #expect(guesses("10 km") == ["km>mi", "km>m", "km>ft", "km>in", "km>cm"])
+        #expect(guesses("10km").first == "km>mi")
+        #expect(guesses("2 in").first == "in>cm")
+        #expect(guesses("30 c") == ["°c>°f"])
+        #expect(guesses("10 kilom").first == "km>mi")
+        #expect(guesses("10 km to") == ["km>mi", "km>m", "km>ft", "km>in", "km>cm"])
+        #expect(guesses("10 km to m") == ["km>m"])
+        #expect(guesses("10 km to fe") == ["km>ft"])
+        #expect(guesses("1 ho").first == "h>min")
+        #expect(guesses("2 gb").first == "GB>MB")
+        #expect(guesses("15 pounds to ki").contains("lb>kg"))
+        #expect(guesses("10 km to e").isEmpty)
+    }
+
+    @Test func onlyAmountsSuggestConversions() {
+        for text in ["15", "15 r", "15ring", "4k", "3d", "ringgit", "15 xyz", "15 myr to kg", "1password", "10 km to kg"] {
+            #expect(guesses(text).isEmpty, "\(text) should not suggest conversions")
+        }
+        #expect(guesses("15 ringgit", limit: 0).isEmpty)
+    }
+
     @Test func parsingStaysWithinTheKeystrokeBudget() {
         let start = Date()
         for _ in 0..<1000 { _ = UnitConversion.parse(lowercased: "1,000.5 km/h to mph") }
+        for _ in 0..<1000 { _ = UnitConversion.suggestions(lowercased: "15 ma", currencies: ["EUR", "USD"], units: Config.Calculator().suggestedUnits, limit: 6) }
         #expect(Date().timeIntervalSince(start) < 1, "1 000 parses must take far under 5 ms each")
     }
 }

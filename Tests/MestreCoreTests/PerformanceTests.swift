@@ -33,7 +33,8 @@ import Testing
     @Test func timeAndDateParsingStaysFast() {
         let queries = ["s", "sa", "saf", "safari", "2*(3+4)", "10 km to mi", "100 usd to eur", "3d printer", "time machine",
                        "time in tokyo", "3pm lisbon in sf", "15:30 utc to pst", "today + 90d", "dec 25 - today",
-                       "days until christmas", "unix 1700000000", "now in unix", "2026-01-01 + 3 weeks"]
+                       "days until christmas", "unix 1700000000", "now in unix", "2026-01-01 + 3 weeks",
+                       "3pm", "3p", "3pm lis", "3pm new y", "3pm lisbon in", "time in to", "3pm sa"]
         let context = TimeCalculator.Context(here: TimeZone(identifier: "Europe/Lisbon")!, locale: Locale(identifier: "en_GB"))
         let coldStart = ContinuousClock.now
         for query in queries { _ = TimeCalculator.answers(lowercased: query, context: context) }

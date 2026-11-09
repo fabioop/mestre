@@ -66,11 +66,15 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "currency": true,
     "defaultCurrency": "",
     "ratesMaxAgeHours": 24,
-    "ratesURL": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
+    "ratesURL": "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/eur.min.json",
     "timeZones": true,
     "dates": true,
     "cityAliases": {},
-    "worldClocks": []
+    "worldClocks": [],
+    "suggestions": 6,
+    "suggestedPlaces": ["utc", "london", "new york", "san francisco", "tokyo"],
+    "suggestedCurrencies": ["USD", "EUR", "GBP", "JPY", "CHF"],
+    "suggestedUnits": ["km", "mi", "m", "ft", "in", "cm", "kg", "lb", "g", "oz", "°c", "°f", "l", "ml", "gal", "fl oz", "cup", "m²", "ft²", "ha", "ac", "km/h", "mph", "m/s", "kn", "GB", "MB", "TB", "KB", "min", "h", "s", "d", "wk"]
   },
   "commands": {
     "enabled": true,
@@ -563,10 +567,19 @@ Without `--default` it prints the settings in force.
 - `calculator`: `enabled` and `precision` (significant digits). A comma followed by three
   digits is a thousands separator; otherwise it is a decimal point (`3,5*2` = 7).
   `units` turns on `10 km to mi` and `72f in c` (also `in`, `as`, `em`, `para`) for length, mass, temperature,
-  volume, area, speed, data and time. `currency` turns on `100 usd to eur`; `100 usd` alone goes to
-  `defaultCurrency`, or the Mac's region when that is empty, and shows nothing when that currency has no reference rate. Rates come from `ratesURL`, in the European Central
-  Bank's format, and are downloaded only after such a query is typed, at most once per `ratesMaxAgeHours`.
-  The cached copy is used when offline, and the row says which day its rates are from.
+  volume, area, speed, data and time. `currency` turns on `100 usd to eur` for every currency in use
+  (ISO 4217, by code, symbol or name) plus `btc` and `eth`; `100 usd` alone goes to `defaultCurrency`, or the
+  Mac's region when that is empty.
+  While you type, up to `suggestions` rows answer early: an amount with no target converts to
+  `defaultCurrency` then `suggestedCurrencies` (`15 ringgit`, `15 myr to`), or to the `suggestedUnits` in its
+  category (`10 km` → mi, m, ft…; `30 c` → °F). A name being typed matches by its start: `15 ring` is MYR,
+  `10 kilom` km, `1 ho` hours, `15 krona` both SEK and ISK, and the same after `to` (`15 myr to e`,
+  `10 km to fe`). Currency names come from macOS in English and your Mac's language. Written together
+  with the number, only a full name counts (`10km` yes, `4k` and `3d` stay app searches).
+  Rates come from `ratesURL`: by default the free currency-api on jsDelivr (no key, every currency); the
+  ECB's daily XML and open.er-api.com's JSON work too. They are downloaded only after such a query is
+  typed, at most once per `ratesMaxAgeHours`, and again when `ratesURL` changes. The cached copy is used
+  when offline, and the row says which day its rates are from.
   `timeZones` turns on `time in tokyo`, `now in new york`, `tokyo time`, `3pm lisbon in sf` and
   `15:30 utc to pst` (also `3 pm`, `15h30`, `noon`; `3pm tokyo` alone converts to your time). Places are the
   cities macOS knows (`Asia/Tokyo` → `tokyo`), full identifiers, `utc+5:30`, and a built-in list of
@@ -575,6 +588,10 @@ Without `--default` it prints the settings in force.
   `{"home": "Europe/Lisbon", "office": "nyc"}`; a value is an identifier or any name Mestre knows.
   `worldClocks` is what `time` alone lists, e.g. `["home", "sf", "tokyo"]`; empty shows nothing, so
   `time` keeps finding Time Machine. A city name alone never becomes a row.
+  Half-typed queries already answer, up to `suggestions` rows (at most 20; 0 waits for a full query): `3pm` alone
+  converts to `worldClocks` and then `suggestedPlaces`, as does `3pm lisbon in`; a place being typed
+  matches by its start, so `3pm lis` offers Lisbon, `3pm lisbon in new` offers New York and `time in to`
+  offers Tokyo and Toronto. `3p` and `3a` count as 3 pm and 3 am.
   `dates` turns on date maths: `today + 90d`, `2026-01-01 + 3 weeks - 2d`, `now + 90 min`,
   `dec 25 - today`, `2026-12-25 - 2026-01-01`, `days until christmas`, `weeks since 2026-01-01`,
   `months between 2026-01-01 and dec 25`, `unix 1700000000` (13 digits are milliseconds), `now in unix`,

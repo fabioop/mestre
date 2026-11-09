@@ -15,6 +15,10 @@ public enum TimeCalculator {
         public var cityAliases: [String: TimeZoneNames.Alias]
         /// `calculator.worldClocks`: what `time` alone lists.
         public var worldClocks: [String]
+        /// `calculator.suggestions`: rows a half-typed query may show; 0 answers only finished ones.
+        public var suggestionLimit: Int
+        /// `calculator.suggestedPlaces`: what a time with no place converts to, after `worldClocks`.
+        public var suggestedPlaces: [String]
         /// Gregorian in `here`: what arithmetic and ISO input use, whatever calendar the Mac shows.
         private(set) var calendar = Calendar(identifier: .gregorian)
 
@@ -27,6 +31,8 @@ public enum TimeCalculator {
             dates = settings.dates
             cityAliases = TimeZoneNames.aliases(from: settings.cityAliases)
             worldClocks = settings.worldClocks
+            suggestionLimit = settings.suggestions
+            suggestedPlaces = settings.suggestedPlaces
             calendar.timeZone = here
         }
 
@@ -138,6 +144,8 @@ public enum TimeCalculator {
     private static let atWords: Set<String> = ["in", "at", "em", "na", "no"]
     private static let clockWords: Set<String> = ["noon", "midday", "midnight"]
     private static let clockSuffixes: Set<String> = ["h", "am", "pm"]
+    /// `3p`, `3a`: a suffix still being typed, accepted only at the end of the query.
+    private static let partialSuffixes: Set<String> = ["a", "p"]
 
     // MARK: - Tokens
 
@@ -490,6 +498,8 @@ public enum TimeCalculator {
 
         // MARK: Time zones
 
+        /// A finished query has one answer; a half-typed one (`3pm`, `3pm lis`, `3pm lisbon in`,
+        /// `time in to`) suggests up to `suggestionLimit` places for the part still missing.
         mutating func zoneAnswers() -> [Answer] {
             index = 0
             guard let first = current else { return [] }
@@ -498,59 +508,129 @@ public enum TimeCalculator {
             }
             if first.isWord(in: nowWords) {
                 let start = peek(1)?.isWord(in: atWords) == true ? 2 : 1
-                guard start < tokens.count, let place = place(tokens: start..<tokens.count) else { return [] }
-                return [currentTime(at: place)]
+                // `time in` with nothing after it yet: the usual places.
+                if start == 2, start == tokens.count { return suggestedPlaces(excluding: .here(context.here)).map(currentTime) }
+                guard start < tokens.count else { return [] }
+                // Half-typed names only after `in`: `time ma` is on its way to Time Machine.
+                if start == 1 { return place(tokens: start..<tokens.count).map { [currentTime(at: $0)] } ?? [] }
+                return places(tokens: start..<tokens.count).map(currentTime)
             }
             if tokens.count >= 2, tokens[tokens.count - 1].isWord("time"), let place = place(tokens: 0..<tokens.count - 1, strict: true) {
                 return [currentTime(at: place)]
             }
-            guard let (hour, minute) = clock() else { return [] }
-            let connector = tokens[index...].lastIndex { $0.isWord(in: connectors) }
+            guard let (hour, minute, isClearlyATime) = clock() else { return [] }
+            // `1h to min` is a unit conversion and `noon` alone may be an app: only a clock that can't
+            // be anything else (`3pm`, `15:30`) suggests places for what isn't typed yet.
+            let suggest = isClearlyATime && context.suggestionLimit > 0
+            let connectorIndices = tokens.indices[index...].filter { tokens[$0].isWord(in: connectors) }
+            // A connector word typed last after another one is the target on its way (`… in in`dia,
+            // `… in to`kyo), not a second connector.
+            let connector = connectorIndices.count > 1 && connectorIndices.last == tokens.count - 1 && suggest
+                ? connectorIndices[connectorIndices.count - 2] : connectorIndices.last
             let sourceRange = index..<(connector ?? tokens.count)
-            let targetRange = connector.map { ($0 + 1)..<tokens.count }
-            guard !sourceRange.isEmpty || targetRange != nil else { return [] }
             let here = TimeZoneNames.Place.here(context.here)
-            guard let source = sourceRange.isEmpty ? here : place(tokens: sourceRange),
-                  let target = targetRange.map({ $0.isEmpty ? nil : place(tokens: $0) }) ?? here else { return [] }
-            return convert(hour: hour, minute: minute, from: source, to: target).map { [$0] } ?? []
+            if let connector {
+                // The source is finished once a connector follows it; only the target may be half-typed.
+                guard let source = sourceRange.isEmpty ? here : place(tokens: sourceRange) else { return [] }
+                let targetRange = (connector + 1)..<tokens.count
+                let targets: [TimeZoneNames.Place]
+                if !targetRange.isEmpty {
+                    targets = places(tokens: targetRange, suggest: suggest)
+                } else if suggest {
+                    // `3pm tokyo in`: your time first, then the usual places.
+                    targets = Array(((source.isHere ? [] : [here]) + suggestedPlaces(excluding: source)).prefix(context.suggestionLimit))
+                } else {
+                    return []
+                }
+                return targets.compactMap { convert(hour: hour, minute: minute, from: source, to: $0) }
+            }
+            // `3pm` alone converts to the usual places; `3pm tokyo` (or `3pm tok`) to your time.
+            if sourceRange.isEmpty {
+                guard suggest else { return [] }
+                return suggestedPlaces(excluding: here).compactMap { convert(hour: hour, minute: minute, from: here, to: $0) }
+            }
+            return places(tokens: sourceRange, suggest: suggest).compactMap { convert(hour: hour, minute: minute, from: $0, to: here) }
         }
 
-        /// `3pm`, `3 pm`, `15:30`, `3:30pm`, `15h`, `15h30`, `noon`, `midnight`.
-        private mutating func clock() -> (Int, Int)? {
+        /// The place these tokens name, or while it is still being typed, the places it may become.
+        private func places(tokens range: Range<Int>, suggest: Bool = true) -> [TimeZoneNames.Place] {
+            let exact = place(tokens: range)
+            // `me` and `here` are finished names that also start others (`me`xico, `he`lsinki).
+            guard exact == nil || exact?.isHere == true, suggest, !range.isEmpty else { return exact.map { [$0] } ?? [] }
+            let text = self.text(tokens: range)
+            if let exact {
+                let more = TimeZoneNames.suggestions(prefix: text, userAliases: context.cityAliases, limit: context.suggestionLimit)
+                return [exact] + more.filter { $0.zone.identifier != exact.zone.identifier }.prefix(context.suggestionLimit - 1)
+            }
+            // One of your names that points nowhere is finished, not half-typed.
+            guard context.cityAliases[text] == nil else { return [] }
+            return TimeZoneNames.suggestions(prefix: text, userAliases: context.cityAliases, limit: context.suggestionLimit)
+        }
+
+        /// `worldClocks` then `suggestedPlaces`, one per zone, leaving out yours and `excluded`'s.
+        private func suggestedPlaces(excluding excluded: TimeZoneNames.Place) -> [TimeZoneNames.Place] {
+            var seen: Set<String> = [context.here.identifier, excluded.zone.identifier]
+            var result: [TimeZoneNames.Place] = []
+            for name in context.worldClocks + context.suggestedPlaces where result.count < context.suggestionLimit {
+                guard let place = place(name), seen.insert(place.zone.identifier).inserted else { continue }
+                result.append(place)
+            }
+            return result
+        }
+
+        /// `3pm`, `3 pm`, `15:30`, `3:30pm`, `15h`, `15h30`, `noon`, `midnight`. `isClearlyATime` is
+        /// false for `15h` (an hour count too) and the words.
+        private mutating func clock() -> (hour: Int, minute: Int, isClearlyATime: Bool)? {
             guard let token = current else { return nil }
             if token.isWord(in: clockWords) {
                 index += 1
-                return token.text == "midnight" ? (0, 0) : (12, 0)
+                return token.text == "midnight" ? (0, 0, false) : (12, 0, false)
             }
             var hour: Int, minute = 0
             if token.kind == .clock {
                 (hour, minute) = (token.parts[0], token.parts[1])
                 index += 1
-            } else if let value = token.integer(digits: 2), let next = peek(1), next.isWord(in: clockSuffixes) {
+            } else if let value = token.integer(digits: 2), isSuffix(at: index + 1, in: clockSuffixes) {
+                let next = tokens[index + 1]
                 hour = value
                 index += 1
                 if next.text == "h" {
                     index += 1
+                    var hasMinutes = false
                     if let minutes = current, minutes.start == next.end, let value = minutes.integer(digits: 2) {
                         minute = value
                         index += 1
+                        hasMinutes = true
                     }
-                    return hour < 24 && minute < 60 ? (hour, minute) : nil
+                    return hour < 24 && minute < 60 ? (hour, minute, hasMinutes) : nil
                 }
             } else {
                 return nil
             }
-            if let half = current, half.isWord("am") || half.isWord("pm") {
+            // `3p` and `3a` as the last thing typed: "pm" and "am" on their way.
+            if let half = current, isSuffix(at: index, in: ["am", "pm"]) {
                 guard (1...12).contains(hour) else { return nil }
                 index += 1
-                hour = hour % 12 + (half.text == "pm" ? 12 : 0)
+                hour = hour % 12 + (half.text.hasPrefix("p") ? 12 : 0)
             }
-            return hour < 24 && minute < 60 ? (hour, minute) : nil
+            return hour < 24 && minute < 60 ? (hour, minute, true) : nil
+        }
+
+        /// One of `suffixes` at `position`, or `a`/`p` there when it is the last thing typed.
+        private func isSuffix(at position: Int, in suffixes: Set<String>) -> Bool {
+            guard position < tokens.count else { return false }
+            let token = tokens[position]
+            return token.isWord(in: suffixes) || (position == tokens.count - 1 && token.isWord(in: partialSuffixes))
+        }
+
+        /// The typed text these tokens cover, spaces inside included.
+        private func text(tokens range: Range<Int>) -> String {
+            String(chars[tokens[range.lowerBound].start..<tokens[range.upperBound - 1].end])
         }
 
         private func place(tokens range: Range<Int>, strict: Bool = false) -> TimeZoneNames.Place? {
             guard !range.isEmpty else { return nil }
-            return place(String(chars[tokens[range.lowerBound].start..<tokens[range.upperBound - 1].end]), strict: strict)
+            return place(text(tokens: range), strict: strict)
         }
 
         private func place(_ text: String, strict: Bool = false) -> TimeZoneNames.Place? {

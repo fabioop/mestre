@@ -331,8 +331,9 @@ public struct Config: Codable, Equatable, Sendable {
         public var defaultCurrency: String = ""
         /// Rates older than this are downloaded again when next needed.
         public var ratesMaxAgeHours: Double = 24
-        /// The European Central Bank's daily file, or anything in its format.
-        public var ratesURL: String = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+        /// Daily rates for every currency: the free currency-api on jsDelivr. Also reads open.er-api.com and the
+        /// European Central Bank's XML (30 currencies).
+        public var ratesURL: String = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/eur.min.json"
         /// `time in tokyo`, `3pm lisbon in sf`, `15:30 utc to pst`.
         public var timeZones: Bool = true
         /// `today + 90d`, `dec 25 - today`, `days until christmas`, `unix 1700000000`.
@@ -341,10 +342,21 @@ public struct Config: Codable, Equatable, Sendable {
         public var cityAliases: [String: String] = [:]
         /// Places `time` alone lists, e.g. ["home", "sf", "tokyo"]. Empty shows nothing for `time`.
         public var worldClocks: [String] = []
+        /// How many rows a half-typed time, currency or unit query suggests (`3pm`, `3pm lis`, `time in to`,
+        /// `15 ringgit`, `15 myr to e`, `10 km`, `10 km to m`). 0 answers only finished queries.
+        public var suggestions: Int = 6
+        /// What a time with no place converts to (`3pm`, `3pm lisbon in`), after `worldClocks`.
+        public var suggestedPlaces: [String] = ["utc", "london", "new york", "san francisco", "tokyo"]
+        /// What an amount with no target converts to (`15 ringgit`, `15 myr to`), after `defaultCurrency`.
+        public var suggestedCurrencies: [String] = ["USD", "EUR", "GBP", "JPY", "CHF"]
+        /// What a measure with no target converts to (`10 km`, `30 c`), those in its category, in this order.
+        public var suggestedUnits: [String] = ["km", "mi", "m", "ft", "in", "cm", "kg", "lb", "g", "oz", "°c", "°f",
+                                               "l", "ml", "gal", "fl oz", "cup", "m²", "ft²", "ha", "ac", "km/h", "mph", "m/s",
+                                               "kn", "GB", "MB", "TB", "KB", "min", "h", "s", "d", "wk"]
 
         public init() {}
 
-        enum CodingKeys: String, CodingKey { case enabled, precision, units, currency, defaultCurrency, ratesMaxAgeHours, ratesURL, timeZones, dates, cityAliases, worldClocks }
+        enum CodingKeys: String, CodingKey { case enabled, precision, units, currency, defaultCurrency, ratesMaxAgeHours, ratesURL, timeZones, dates, cityAliases, worldClocks, suggestions, suggestedPlaces, suggestedCurrencies, suggestedUnits }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -359,6 +371,10 @@ public struct Config: Codable, Equatable, Sendable {
             dates = try c.decodeIfPresent(Bool.self, forKey: .dates) ?? dates
             cityAliases = try c.decodeIfPresent([String: String].self, forKey: .cityAliases) ?? cityAliases
             worldClocks = try c.decodeIfPresent([String].self, forKey: .worldClocks) ?? worldClocks
+            suggestions = min(20, max(0, try c.decodeIfPresent(Int.self, forKey: .suggestions) ?? suggestions))
+            suggestedPlaces = try c.decodeIfPresent([String].self, forKey: .suggestedPlaces) ?? suggestedPlaces
+            suggestedCurrencies = try c.decodeIfPresent([String].self, forKey: .suggestedCurrencies) ?? suggestedCurrencies
+            suggestedUnits = try c.decodeIfPresent([String].self, forKey: .suggestedUnits) ?? suggestedUnits
         }
     }
 

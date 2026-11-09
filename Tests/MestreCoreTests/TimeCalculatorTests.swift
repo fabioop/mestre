@@ -124,12 +124,67 @@ import Testing
     }
 
     @Test func aPlaceAloneOrAnythingElseIsNotATimeQuery() {
-        for text in ["tokyo", "lisbon", "sf", "d", "time in", "time in xyz", "time machine", "screen time", "date & time", "now playing",
+        for text in ["tokyo", "lisbon", "sf", "d", "time in xyz", "time machine", "time ma", "time mac", "screen time", "date & time", "now playing",
                      "me time", "local time", "wake time", "pet time", "cat time", "davis time", "center time",
-                     "3pm", "3 pm", "15:30", "13pm tokyo", "25:00 utc to pst", "3pm to eur", "1h to min", "10 min to h", "4 to 6", "2 in 1",
+                     "noon", "midnight", "15h", "3pm meeting", "3pm l", "13pm tokyo", "3 apples", "1h to mi", "25:00 utc to pst", "3pm to eur", "1h to min", "10 min to h", "4 to 6", "2 in 1",
                      "safari", "now", "today", "tomorrow", "christmas", "new", "may", "dec", "unix", "unix abc", "time zone"] {
             #expect(TimeCalculator.answers(lowercased: text, context: context).isEmpty, "\(text) should not answer")
         }
+    }
+
+    @Test func aTimeAloneConvertsToTheUsualPlaces() {
+        let titles = TimeCalculator.answers(lowercased: "3pm", context: context).map(\.title)
+        // Lisbon is here, so London (the same zone offset but another identifier) stays and UTC too.
+        #expect(titles == ["Fri 6 Nov, 15:00 in UTC", "Fri 6 Nov, 15:00 in London", "Fri 6 Nov, 10:00 in New York",
+                           "Fri 6 Nov, 07:00 in San Francisco", "Sat 7 Nov, 00:00 in Tokyo"])
+        for text in ["3 pm", "3p", "3 p", "15:00", "15h00"] {
+            #expect(TimeCalculator.answers(lowercased: text, context: context).map(\.title) == titles, "\(text)")
+        }
+        #expect(answer("9a")?.subtitle == "09:00 your time · same time")
+        var context = context
+        context.worldClocks = ["office"]
+        context.suggestedPlaces = ["tokyo", "nyc"]
+        #expect(TimeCalculator.answers(lowercased: "3pm", context: context).map(\.title) == ["Fri 6 Nov, 10:00 in office", "Sat 7 Nov, 00:00 in Tokyo"])
+    }
+
+    @Test func aPlaceBeingTypedIsMatchedByItsStart() {
+        let lis = TimeCalculator.answers(lowercased: "3pm lis", context: context)
+        #expect(lis.first?.title == "Fri 6 Nov, 15:00 your time" && lis.first?.subtitle.contains("Lisbon") == true)
+        #expect(TimeCalculator.answers(lowercased: "3pm new y", context: context).first?.subtitle.contains("New York") == true)
+        let targets = TimeCalculator.answers(lowercased: "3pm lisbon in tok", context: context).map(\.title)
+        #expect(targets == ["Sat 7 Nov, 00:00 in Tokyo"])
+        #expect(TimeCalculator.answers(lowercased: "time in tok", context: context).first?.title == "Fri 6 Nov, 23:00 in Tokyo")
+        let to = TimeCalculator.answers(lowercased: "time in toro", context: context).map(\.title)
+        #expect(to == ["Fri 6 Nov, 09:00 in Toronto"])
+        #expect(TimeCalculator.answers(lowercased: "3pm in ho", context: context).map(\.title).first == "Fri 6 Nov, 15:00 in Home")
+        // A connector word typed last after another one is the target on its way.
+        #expect(TimeCalculator.answers(lowercased: "3pm lisbon in to", context: context).map(\.title).contains("Sat 7 Nov, 00:00 in Tokyo"))
+        #expect(TimeCalculator.answers(lowercased: "3pm in in", context: context).first?.title.contains("India") == true)
+        // `me` is you, and also how Mexico and Melbourne start.
+        let me = TimeCalculator.answers(lowercased: "3pm me", context: context).map(\.subtitle)
+        #expect(me.first == "15:00 your time · same time" && me.dropFirst().contains { $0.contains("Me") })
+        // Finished queries still answer once.
+        #expect(TimeCalculator.answers(lowercased: "3pm lisbon in sf", context: context).count == 1)
+    }
+
+    @Test func aTrailingConnectorSuggestsWhereTo() {
+        let titles = TimeCalculator.answers(lowercased: "3pm tokyo in", context: context).map(\.title)
+        #expect(titles.first == "Fri 6 Nov, 06:00 your time")
+        #expect(titles.contains("Fri 6 Nov, 01:00 in New York") && !titles.contains { $0.hasSuffix("in Tokyo") })
+        #expect(TimeCalculator.answers(lowercased: "time in", context: context).map(\.title).first == "Fri 6 Nov, 14:00 in UTC")
+    }
+
+    @Test func suggestionsCanBeTurnedOffAndCapped() {
+        var context = context
+        context.suggestionLimit = 2
+        #expect(TimeCalculator.answers(lowercased: "3pm", context: context).count == 2)
+        #expect(TimeCalculator.answers(lowercased: "3pm sa", context: context).count == 2)
+        #expect(TimeCalculator.answers(lowercased: "3pm tokyo in", context: context).count == 2)
+        context.suggestionLimit = 0
+        for text in ["3pm", "3pm lis", "time in", "time in tok", "3pm tokyo in"] {
+            #expect(TimeCalculator.answers(lowercased: text, context: context).isEmpty, "\(text)")
+        }
+        #expect(answer("3pm tokyo", context) != nil)
     }
 
     // MARK: Dates
@@ -260,6 +315,9 @@ import Testing
         let json = #"{"calculator": {"timeZones": false, "dates": false, "cityAliases": {"Home": "Europe/Lisbon"}, "worldClocks": ["home", "sf"]}}"#
         let set = try JSONDecoder().decode(Config.self, from: Data(json.utf8)).calculator
         #expect(!set.timeZones && !set.dates && set.cityAliases == ["Home": "Europe/Lisbon"] && set.worldClocks == ["home", "sf"])
+        #expect(defaults.suggestions == 6 && defaults.suggestedCurrencies.first == "USD" && defaults.suggestedPlaces.first == "utc")
+        let capped = try JSONDecoder().decode(Config.self, from: Data(#"{"calculator": {"suggestions": 99, "suggestedPlaces": []}}"#.utf8)).calculator
+        #expect(capped.suggestions == 20 && capped.suggestedPlaces.isEmpty)
     }
 }
 
