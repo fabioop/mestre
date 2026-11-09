@@ -19,6 +19,20 @@ final class ClipboardMonitor {
         }
     }
 
+    /// The `ocr` section: whether images in the history get their text read.
+    var ocr = Config.OCR() {
+        didSet {
+            if Self.readerSettings(ocr) != Self.readerSettings(oldValue) {
+                textReader.cancelAll()
+                if unsavedText { persist() }
+            }
+            readPendingText()  // also the first assignment, at launch: queued names aren't queued twice
+        }
+    }
+    private lazy var textReader = ClipboardTextReader(directory: directory) { [weak self] name, text, isLast in
+        self?.storeText(text, forImage: name, notify: isLast)
+    }
+
     let directory: URL
     private var fileURL: URL { directory.appendingPathComponent("history.json") }
     private var timer: Timer?
@@ -29,17 +43,55 @@ final class ClipboardMonitor {
     private let images = NSCache<NSString, NSImage>()
     private let io = DispatchQueue(label: "app.mestre.clipboard", qos: .utility)  // serial: writes land in order
     private var pendingWrite: DispatchWorkItem?
+    /// history.json is read off the main thread at launch; nothing is written before it landed.
+    private var loaded = false
+    /// Text read since the last write: a backlog of images is written once, when it finishes.
+    private var unsavedText = false
+    /// Removals made while history.json was still being read, applied to it when it lands.
+    private var removedBeforeLoad = Set<UUID>()
+    private var clearedBeforeLoad = false
 
     nonisolated static let defaultDirectory = AppSupport.folder.appendingPathComponent("Clipboard")
 
     init(directory: URL = ClipboardMonitor.defaultDirectory) {
         self.directory = directory
-        AppSupport.makePrivateFolder(directory)
-        if let data = try? Data(contentsOf: fileURL), let saved = try? JSONDecoder().decode(ClipboardHistory.self, from: data) {
-            history = saved
+        restartTimer()
+        load()
+    }
+
+    /// Reads and decodes history.json (and derives every entry's search text) on the I/O queue.
+    private func load() {
+        let url = fileURL
+        let directory = directory
+        io.async { [weak self] in
+            AppSupport.makePrivateFolder(directory)
+            let saved = (try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode(ClipboardHistory.self, from: $0) }
+            DispatchQueue.main.async { self?.finishLoading(saved ?? ClipboardHistory()) }
+        }
+    }
+
+    /// Installs the saved history, keeping anything copied while it was being read.
+    private func finishLoading(_ saved: ClipboardHistory) {
+        let copiedMeanwhile = history.entries
+        history = saved
+        loaded = true
+        let undone = clearedBeforeLoad || !removedBeforeLoad.isEmpty
+        if clearedBeforeLoad { for entry in history.removeAll() { deleteImage(entry) } }
+        for id in removedBeforeLoad { if let removed = history.remove(id: id) { deleteImage(removed) } }
+        clearedBeforeLoad = false
+        removedBeforeLoad = []
+        for entry in copiedMeanwhile.reversed() {
+            if let dropped = history.add(entry, limit: settings.maxItems) { deleteImage(dropped) }
         }
         removeOrphanImages()
-        restartTimer()
+        if !settings.enabled {
+            removeAll()
+        } else {
+            expire()
+            if undone || !copiedMeanwhile.isEmpty { persist() }
+        }
+        readPendingText()
+        onChange?()
     }
 
     // MARK: Using entries
@@ -84,11 +136,13 @@ final class ClipboardMonitor {
     }
 
     func remove(_ entry: ClipboardEntry) {
+        if !loaded { removedBeforeLoad.insert(entry.id) }
         if let removed = history.remove(id: entry.id) { deleteImage(removed) }
         persist()
     }
 
     func removeAll() {
+        if !loaded { clearedBeforeLoad = true }
         for entry in history.removeAll() { deleteImage(entry) }
         persist()
     }
@@ -172,6 +226,32 @@ final class ClipboardMonitor {
         expire()
         persist()
         onChange?()
+        if entry.kind == .image { readPendingText(only: entry.content) }
+    }
+
+    // MARK: Text in images (background, once per image)
+
+    /// Queues the images whose text hasn't been read: the whole backlog (at launch, after a
+    /// settings change), or only `name`, a new copy.
+    private func readPendingText(only name: String? = nil) {
+        guard settings.enabled, ocr.readsClipboardImages else { return }
+        var names = history.imagesAwaitingText
+        if let name { names = names.contains(name) ? [name] : [] }
+        if !names.isEmpty { textReader.enqueue(names, settings: ocr, maxBytes: settings.maxTextBytes) }
+    }
+
+    /// What the clipboard reader's results depend on; `keepLineBreaks` is Copy Text from
+    /// Screen's alone, so changing it leaves the queue as it is.
+    private static func readerSettings(_ ocr: Config.OCR) -> (Bool, [String], Config.OCR.Level, Int) {
+        (ocr.readsClipboardImages, ocr.languages, ocr.recognitionLevel, ocr.maxImagePixels)
+    }
+
+    private func storeText(_ text: String?, forImage name: String, notify isLast: Bool) {
+        guard ocr.readsClipboardImages else { return }
+        if let text, history.setRecognizedText(text, forImage: name) { unsavedText = true }
+        guard isLast else { return }
+        if unsavedText { persist() }
+        onChange?()
     }
 
     private func expire() {
@@ -183,6 +263,8 @@ final class ClipboardMonitor {
     // MARK: Persistence (serial queue, debounced, owner-only file)
 
     private func persist() {
+        guard loaded else { return }
+        unsavedText = false
         pendingWrite?.cancel()
         let snapshot = history
         let url = fileURL

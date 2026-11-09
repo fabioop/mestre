@@ -56,7 +56,7 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "showRecents": true,
     "runningBoost": 5,
     "systemAppPenalty": 2,
-    "providers": { "settings": { "bias": -200 } },
+    "providers": { "settings": { "bias": -200 }, "contacts": { "bias": -25 }, "menus": { "bias": -15 } },
     "budgetMs": 5
   },
   "calculator": {
@@ -66,12 +66,18 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "currency": true,
     "defaultCurrency": "",
     "ratesMaxAgeHours": 24,
-    "ratesURL": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+    "ratesURL": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
+    "timeZones": true,
+    "dates": true,
+    "cityAliases": {},
+    "worldClocks": []
   },
   "commands": {
     "enabled": true,
     "confirmDestructive": true,
-    "hidden": []
+    "hidden": [],
+    "volumeStep": 10,
+    "quitAllExcept": []
   },
   "settingsPanes": {
     "enabled": true,
@@ -79,7 +85,8 @@ and reloads it as soon as you save it in an editor. Every key is optional.
   },
   "processes": {
     "enabled": true,
-    "keyword": "kill"
+    "keyword": "kill",
+    "ports": true
   },
   "keepAwake": {
     "enabled": true,
@@ -98,9 +105,30 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "connectTimeoutSeconds": 30,
     "showUnknownDevices": false
   },
+  "media": {
+    "enabled": true,
+    "keyword": "media",
+    "nowPlaying": true,
+    "players": ["com.apple.Music", "com.spotify.client"],
+    "method": "keys",
+    "closeOnControl": true,
+    "playPauseWords": ["play", "pause"],
+    "nextWords": ["next"],
+    "previousWords": ["previous", "prev"]
+  },
   "shortcuts": {
     "enabled": true,
     "refreshIntervalSeconds": 300
+  },
+  "scripts": {
+    "enabled": true,
+    "keyword": "script",
+    "directories": ["~/.config/mestre/scripts"],
+    "searchEverywhere": true,
+    "timeoutSeconds": 30,
+    "extraPath": ["/opt/homebrew/bin", "/usr/local/bin"],
+    "editor": "",
+    "hudSeconds": 2
   },
   "webSearch": {
     "enabled": true,
@@ -151,6 +179,16 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "openInSourceBrowser": true,
     "excludeBrowsers": []
   },
+  "contacts": {
+    "enabled": true,
+    "keyword": "contact",
+    "searchEverywhere": true,
+    "minimumLength": 2,
+    "maxResults": 20,
+    "defaultAction": "reveal",
+    "callScheme": "tel",
+    "messageScheme": "sms"
+  },
   "dictionary": {
     "enabled": true,
     "keyword": "define",
@@ -170,12 +208,27 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "countdownMinutes": 60,
     "meetingHosts": ["zoom.us", "zoomgov.com", "meet.google.com", "teams.microsoft.com", "teams.cloud.microsoft", "teams.live.com", "teams.microsoft.us", "webex.com", "facetime.apple.com", "whereby.com"]
   },
+  "reminders": {
+    "enabled": true,
+    "keyword": "remind",
+    "listKeyword": "todo",
+    "defaultList": "",
+    "defaultTime": "09:00"
+  },
   "translator": {
     "enabled": true,
     "keyword": "tr",
     "languages": [],
     "debounceSeconds": 0.3,
     "maxCharacters": 2000
+  },
+  "ocr": {
+    "enabled": true,
+    "clipboardImages": true,
+    "languages": [],
+    "recognitionLevel": "accurate",
+    "keepLineBreaks": true,
+    "maxImagePixels": 16000000
   },
   "files": {
     "enabled": true,
@@ -192,6 +245,16 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "hidden": [],
     "listWindows": true,
     "listRefreshSeconds": 2
+  },
+  "menus": {
+    "enabled": true,
+    "keyword": "menu",
+    "searchEverywhere": false,
+    "readOnOpen": false,
+    "maxDepth": 4,
+    "maxItems": 3000,
+    "readTimeoutSeconds": 2,
+    "cacheSeconds": 5
   },
   "updates": { "check": true, "channel": "stable", "intervalHours": 24 },
   "onboarding": { "showWelcome": true },
@@ -212,8 +275,9 @@ what most people change. Technical keys live only in the file: wait times and po
 `search.scanDepth`, `search.watchFolders`, `search.refreshIntervalSeconds`, `ranking.runningBoost`,
 `ranking.systemAppPenalty`, `ranking.providers`, `ranking.budgetMs`, `quickKeys.keys`,
 `clipboard.maxTextBytes`, `clipboard.pollIntervalSeconds`, `files.debounceSeconds`, `files.minimumLength`,
-`dictionary.debounceSeconds`, `calculator.ratesMaxAgeHours`, `calculator.ratesURL`, `calendar.maxResults`, `calendar.meetingHosts`, `translator.debounceSeconds`, `translator.maxCharacters`, `bookmarks.minimumLength`, `bookmarks.penalty`, `paste`,
-`shortcuts.refreshIntervalSeconds`, `windows.listRefreshSeconds`, `emoji.prefix`, `updates`, and `debug`.
+`dictionary.debounceSeconds`, `calculator.ratesMaxAgeHours`, `calculator.ratesURL`, `calculator.cityAliases`, `calculator.worldClocks`, `calendar.maxResults`, `calendar.meetingHosts`, `translator.debounceSeconds`, `translator.maxCharacters`, `ocr` (except `ocr.clipboardImages`), `bookmarks.minimumLength`, `bookmarks.penalty`, `contacts.minimumLength`, `contacts.maxResults`, `contacts.callScheme`, `contacts.messageScheme`, `paste`,
+`shortcuts.refreshIntervalSeconds`, `scripts.directories`, `scripts.timeoutSeconds`, `scripts.extraPath`, `scripts.editor`, `scripts.hudSeconds`, `windows.listRefreshSeconds`, `emoji.prefix`, `media.players`, the `media`
+search words (`playPauseWords`, `nextWords`, `previousWords`), `updates`, and `debug`.
 
 Each Settings page has a reset button, and General can reset everything. Resets keep your quicklinks,
 snippets, aliases and how much clipboard history is kept, and save the previous file as `config.backup.json`, which Undo puts back.
@@ -244,7 +308,7 @@ Without `--default` it prints the settings in force.
   `window:<layout>`, or `feature:<id>`. An app opens or comes forward without showing the panel;
   `feature:<id>` opens the panel on that feature and closes it when pressed again, e.g.
   `"hyper+v": "feature:clipboard"`. Feature ids: `clipboard`, `emoji`, `files`, `paths`,
-  `bookmarks`, `dictionary`, `calendar`, `translator`, `keepAwake`, `bluetooth`, `processes`, `colors`, `windows`. Shortcuts another
+  `bookmarks`, `contacts`, `dictionary`, `calendar`, `reminders`, `translator`, `keepAwake`, `bluetooth`, `media`, `processes`, `colors`, `scripts`, `windows`, `menus`. Shortcuts another
   app already owns are reported in Settings.
 - `keys`: overrides for what each key does inside the panel, in the same combo format as
   `hotKey`, e.g. `"keys": {"moveUp": ["up", "ctrl+k"], "quit": "cmd+w"}`. Names come from one
@@ -254,7 +318,7 @@ Without `--default` it prints the settings in force.
   menu shows each action's name next to its key, so what you see is what you bind. Defaults:
   `moveUp` up, ctrl+p · `moveDown` down, ctrl+n · `open` return · `close` escape ·
   `actions` cmd+k · `complete` tab · `moveLeft` left · `moveRight` right (only while chips are open) ·
-  `back` delete (only to leave a scope) · `quit` cmd+q · `hide` cmd+h · `reveal` cmd+return · `copyPath` cmd+shift+c ·
+  `back` delete (only to leave a scope) · `quit` cmd+q · `hide` cmd+h · `reveal` cmd+return · `copyPath` cmd+shift+c · `copyText` cmd+t ·
   `quickLook` cmd+y. Your overrides win over defaults; a bound key is consumed before the text
   field sees it, so avoid binding plain letters.
 - `quicklinks`: a list of `{name, url, keyword}`. A URL containing `{query}` is a search:
@@ -279,7 +343,8 @@ Without `--default` it prints the settings in force.
   selection highlight. `showFooter` draws the bar under the list that names the feature owning
   the query and the selected row's keys (Open ↩, Actions ⌘K). `peekNextRow` shows half of the
   next row when more results exist than fit, so the overflow is visible without a scrollbar.
-  `toastSeconds` is how long a confirmation such as "Path copied" stays in the footer (0 = none).
+  `toastSeconds` is how long a confirmation such as "Path copied" stays in the footer (0 = none;
+  scripts then show their messages near the bottom of the screen for `scripts.hudSeconds`).
   `compact` keeps the panel to the field and the footer until something is typed, instead of the
   home screen. `completion` is what choosing a feature or a search quicklink does: `scope`
   (default) turns it into a chip before the field and what you type is its query, ⌫ on an empty
@@ -303,15 +368,23 @@ Without `--default` it prints the settings in force.
   `providers` is an advanced setting that weighs one provider against the others when results
   are merged: `scale` multiplies its match scores and `bias` is added; pinned rows (the calculator, a
   keyword's own rows) are left alone. The default `"settings": {"bias": -200}` keeps System
-  Settings panes under any app that matches; `{"scale": 1}` ranks them by match alone. Your
+  Settings panes under any app that matches; `{"scale": 1}` ranks them by match alone. Contacts
+  (`-25`) and menu items (`-15`) found by an ordinary search sit below an app's own score. Your
   entries are added to that default. Weights apply after each provider has picked its own top
   rows, so they reorder the merged list rather than widen one provider's share.
   `budgetMs` is how long a provider may take per keystroke before its worst time is shown in
   Settings (and logged when `debug.logTimings` is on). A matching alias is shown after the title, "Firefox (ff)", so it can be learned.
 - `watchFolders`: re-index the moment an app folder changes, so a fresh install shows up
   immediately. `refreshIntervalSeconds` is an optional periodic fallback (0 = off).
-- `commands`: `enabled`, `confirmDestructive` (Restart, Shut Down, Log Out, Empty Trash ask
-  first) and `hidden` (command ids to drop, also from hotkeys). Commands can be `hotkeys`
+- `commands`: `enabled`, `confirmDestructive` (Restart, Shut Down, Log Out, Empty Trash, Eject
+  All Disks and Quit All Apps ask first) and `hidden` (command ids to drop, also from hotkeys;
+  `setVolume` drops the "volume 30" row). `volumeStep` is how many points Volume Up and Volume
+  Down move (1–100, default 10); "volume 30" (or "vol 30%") sets a level. `quitAllExcept` lists
+  app names or bundle ids Quit All Apps leaves running; Finder and Mestre always stay, and apps
+  with unsaved work still ask. Toggle Wi-Fi uses CoreWLAN (no permission, unless System
+  Settings requires an administrator for Wi-Fi); Toggle Hidden Files flips Finder's
+  `AppleShowAllFiles` and relaunches Finder; Hide Other Apps keeps the frontmost app. Show
+  Desktop and Do Not Disturb have no public API and are not offered. Commands can be `hotkeys`
   targets by id or title, e.g. `"hyper+l": "lockScreen"`; an installed app of the same name
   wins. Some commands drive Finder or System Events through
   AppleScript; macOS asks once for Automation consent.
@@ -326,7 +399,9 @@ Without `--default` it prints the settings in force.
   holds takes over. Keeping awake with the lid closed needs `pmset` changes and is not done.
 - `processes`: `enabled` and the trigger `keyword` (one word, default `kill`). While the
   query starts with the keyword only processes are listed: those you can signal, biggest
-  physical footprint first (the number Activity Monitor shows).
+  physical footprint first (the number Activity Monitor shows). `ports` (default on) makes
+  `kill :3000` or `kill port 3000` list the processes listening on that TCP port instead,
+  read in-process with libproc, off the main thread; only your own processes show up.
 - `bluetooth`: `enabled` and the trigger `keyword` (one word, default `pair`). While the query
   starts with the keyword only the devices this Mac is paired with are listed: devices to connect
   first, audio before the rest and then the one Mestre connected most recently, connected ones last,
@@ -335,8 +410,33 @@ Without `--default` it prints the settings in force.
   Device…", which opens Bluetooth settings. `closeOnConnect` closes the panel once connected and
   `connectTimeoutSeconds` is how long a connection may take before the row says it failed (at least 1).
   macOS asks for Bluetooth access the first time the keyword is typed, and not before.
+- `media`: `enabled` and the trigger `keyword` (one word, default `media`), which lists what is
+  playing and the Play/Pause, Next Track and Previous Track rows. The control rows are also
+  ordinary results, found by `playPauseWords`, `nextWords` and `previousWords` and ranked by fuzzy
+  match like the commands, so an app whose name starts with the same word still comes first on its
+  own name. `method` is how a control is sent: `keys` (default) posts the system media keys, like
+  the keyboard's ⏯ ⏭ ⏮, so whatever owns Now Playing reacts (Music, Spotify, a browser tab); macOS
+  asks for Accessibility access on the first control. `player` sends an Apple Event to the running
+  player instead (Music and Spotify only; macOS asks once for Automation consent per player).
+  `closeOnControl` closes the panel after a control from an ordinary search; under the keyword it
+  stays open so the now-playing row follows the change. `nowPlaying` shows the track, artist and
+  state, read from the players' own change notifications (no polling). A player that was already
+  playing before Mestre started is asked once, by Apple Event, the first time the keyword is typed
+  while it runs; that is when macOS asks for Automation consent. `players` lists the bundle ids
+  to listen to and control, in order of preference; only `com.apple.Music` and
+  `com.spotify.client` are understood. No player is ever launched.
 - `shortcuts`: `enabled` and `refreshIntervalSeconds`, how old the list may be when the panel
   opens before it is re-read (0 = only at launch). Uses the `shortcuts` command line tool.
+- `scripts`: `enabled`, `keyword` (one word, default `script`), `directories` (folders whose
+  scripts are listed, not their subfolders), `searchEverywhere` (titles also rank in ordinary
+  searches), `timeoutSeconds` (a run is stopped after this, at least 1), `extraPath` (put
+  before PATH, which an app opened from the Dock keeps to the system folders), `editor` (a
+  bundle identifier or app path for Edit Script; empty opens the app the file's type opens in,
+  or the default text editor when that app is a terminal that would run it) and `hudSeconds`
+  (how long a script's message shows near the bottom of the screen when the footer can't show
+  it: the panel has closed, `panel.showFooter` is off or `panel.toastSeconds` is 0; 0 shows
+  none). See
+  [Script commands](#script-commands).
 - `webSearch`: `enabled` and `engine`, a URL with `{query}` (e.g. `https://www.google.com/search?q={query}`).
   "Search the web for …" is always the last row; a typed address ("github.com/x",
   "localhost:3000") ranks above prefix matches but below an app whose name matches exactly.
@@ -369,6 +469,20 @@ Without `--default` it prints the settings in force.
   queries of `minimumLength`+ characters, ranked `penalty` below apps), `openInSourceBrowser`,
   `excludeBrowsers` (chrome, brave, edge, chromium, vivaldi, arc, firefox). Files are re-read
   when the panel opens and they changed since; Firefox's database is read in place.
+- `contacts`: `enabled`, `keyword`, `searchEverywhere`, `minimumLength`, `maxResults`, `defaultAction`,
+  `callScheme`, `messageScheme`. `contact jane` searches names, nicknames, organisations, emails and phone
+  numbers (any spacing: `contact 912 345`); accents don't matter and initials work (`contact js`). `contact `
+  lists contacts by name, the first `maxResults` of them. macOS asks for access the first time you use the keyword; refused, the row opens
+  System Settings › Privacy & Security › Contacts. Once access is granted, ordinary queries of
+  `minimumLength`+ characters also find contacts, ranked below apps by `ranking.providers.contacts.bias` (`searchEverywhere`), by whole words only (no initials) and by phone
+  only for a number typed as one, not arithmetic; they never ask for access. Actions (⌘K, or ⇥ for chips): Copy Email, Copy Phone, Email (`mailto:`), Call, Message,
+  FaceTime and Open in Contacts (⌘↩); a card with several emails or phones gets one per value, and a key
+  bound to an action id (`email`, `call`…) acts on the first. `defaultAction` is what Return does: `reveal`
+  (Open in Contacts), `email`, `call`, `message`, `facetime`, `copyEmail` or `copyPhone`; a card without the
+  value it needs opens in Contacts instead. `callScheme` is `tel` (a phone call through a nearby iPhone) or
+  `facetime-audio`; `messageScheme` is `sms` or `imessage`. Contacts are read off the main thread at launch
+  (when access was already granted) and again only when Contacts reports a change; they stay in memory, nothing
+  is written to disk and photos aren't read.
 - `onboarding`: `showWelcome` — the welcome window at launch. The app turns it off after the
   first time; the status menu's "Welcome Guide" and setting it back to `true` show it again.
 - `dictionary`: `enabled`, `keyword`, `maxLines`, `debounceSeconds`, `onPaste`, `cards`, `cardSenses`. Uses the dictionaries
@@ -384,10 +498,38 @@ Without `--default` it prints the settings in force.
   Teams meetings live), Yahoo and CalDAV. An account's name also filters: `cal work`. `cal ` lists what's coming and more words
   filter it; `cal` with no space still finds the Calendar app. Return joins the meeting, or else opens the event.
   macOS asks for access the first time. Events are read off the main thread and again only when the calendars change.
+- `reminders`: `enabled`, `keyword`, `listKeyword`, `defaultList`, `defaultTime`.
+  `remind call mum fri 5pm` shows one row, "Call mum" due Friday at 17:00, and Return adds it to Reminders.
+  The date comes out of the text on the Mac with a fixed grammar: `today`, `tonight`, `tomorrow`, a weekday
+  (`fri`, `next fri`, `on sat`), a date (`12 nov`, `nov 12th`, `7 jan 2028`, `2026-11-20`), a time (`5pm`,
+  `17:30`, `at 7`, `noon`; 1 to 7 with no am/pm is the afternoon, `05:00` is not), `morning`/`afternoon`/`evening`, and `in 2h`, `in 30 min`, `in 3 days`.
+  A weekday that is today means today only when its time is still ahead. `!`, `!!` and `!!!` set low, medium and high
+  priority, and `#name` picks a list (by name, or a prefix only one list has). Chips under the field show what was understood.
+  A reminder with only a day is due at `defaultTime` ("09:00", "9am"); empty leaves it all-day, and so does a
+  `defaultTime` that has already gone today. A reminder with a time also gets an alert then. `defaultList` names the list new
+  reminders go to; empty uses the one macOS picks. `remind ` or `todo ` (`listKeyword`, both with the space; more words filter by title or
+  list), lists open reminders due soonest first: Return completes one, ⌘↩ opens it in Reminders. `remind` with no space
+  still finds the Reminders app. `"home": {"hidden": ["reminders"]}` leaves its row off the home screen; `feature:reminders` hotkeys still work. macOS asks for access the first
+  time the keyword is typed; reminders are read off the main thread and again only when they change.
 - `translator`: `enabled`, `keyword`, `languages`, `debounceSeconds`, `maxCharacters`. `tr hello` goes to
   the first of `languages` it isn't already in; empty uses the Mac's languages, then English.
   `tr >de hello` picks the target and `tr en>pt hello` both sides. Needs macOS 26. Translation is
   on-device and uses languages downloaded in System Settings › General › Language & Region › Translation Languages.
+- `ocr`: text recognition with Vision, on this Mac; nothing is sent anywhere. `enabled` (off also
+  hides the command), `clipboardImages`, `languages` (Vision codes such as `"en-US"`, `"pt-BR"`; empty
+  detects the language; unknown codes are ignored), `recognitionLevel` (`accurate` or `fast`),
+  `keepLineBreaks` and `maxImagePixels` (larger images are scaled down to this many pixels first, at least 250 000).
+  **Copy Text from Screen** (`copy text`, `ocr`, `grab text`) closes the panel and shows the system's
+  selection (drag a region, Space for a window, Esc to cancel). The selection goes to a PNG in a fresh
+  owner-only temporary folder, deleted as soon as it's read. The text is copied to the clipboard and a toast
+  says how many lines. `keepLineBreaks: false` joins the lines with spaces. macOS asks for Screen Recording the first
+  time, and that first try captures nothing. Without the permission a capture shows only the desktop, and the toast says where to allow it.
+  The toast appears near the bottom of the screen for `panel.toastSeconds`, because the panel is already closed.
+  To run it from anywhere, bind the command's id: `"hotkeys": {"ctrl+option+t": "copyTextFromScreen"}`.
+  With `clipboardImages` (on by default), each image that enters clipboard history has its text read once, in
+  the background at low priority, and stored with the entry in `history.json`. Typing words from it
+  (`clip invoice`) finds the image, its row shows the start of the text, and ⌘T (`copyText`) copies the text.
+  Images already in the history are read once when this is on. The text is deleted with its entry.
 - `paths`: `enabled`, `showHidden` (dot files; typing a `.` prefix shows them anyway) and
   `maxResults` for folder browsing. Folders list before files; packages (.app) open like files. Listings are read off the main thread and cached for a few seconds.
 - `files`: `enabled`, `keyword`, `folders` searched, `excludedFolders`, `maxResults`,
@@ -401,6 +543,23 @@ Without `--default` it prints the settings in force.
   bottomHalf, leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds, topLeft,
   topRight, bottomLeft, bottomRight, maximize, almostMaximize, center, restore, nextDisplay,
   previousDisplay.
+- `menus`: menu item search. `menu export` lists the menu bar items of the app that was in
+  front when the panel opened (the panel never takes focus, so it stays the frontmost app) and
+  Return chooses one once the panel has closed. Each row shows the item, the menus above it
+  ("File › Export") and its shortcut; the text matches the title or the whole path
+  (`menu export pdf`). The keyword with nothing after it lists every item in menu order. The Apple
+  menu, separators and disabled items are left out (a disabled item could not be chosen), as are
+  items that only open a submenu. Keys: `enabled`, `keyword` (one word, default `menu`),
+  `searchEverywhere` (menu items also in ordinary searches, below apps by `ranking.providers.menus.bias`; off by default because it
+  reads the front app's whole menu bar on every panel open and a short word matches dozens of
+  menu items), `readOnOpen` (read the menus as the panel opens so they are ready when the keyword
+  is typed; off by default, which reads them when the keyword is first typed), `maxDepth` (menu levels read,
+  counting the menu bar's own menus, 1–10), `maxItems` (items read at most, against menus that
+  list every bookmark or history entry), `readTimeoutSeconds` (a read stops with what it has after
+  this long, 0.1–30) and `cacheSeconds` (how long a read is reused when the panel opens again over
+  the same app; switching apps always reads again). Menus are read through the Accessibility API,
+  off the main thread, never while the feature is off or access is missing. Without access the
+  keyword shows a row that asks for it; macOS shows its prompt only then, never at launch.
 - `calculator`: `enabled` and `precision` (significant digits). A comma followed by three
   digits is a thousands separator; otherwise it is a decimal point (`3,5*2` = 7).
   `units` turns on `10 km to mi` and `72f in c` (also `in`, `as`, `em`, `para`) for length, mass, temperature,
@@ -408,11 +567,76 @@ Without `--default` it prints the settings in force.
   `defaultCurrency`, or the Mac's region when that is empty, and shows nothing when that currency has no reference rate. Rates come from `ratesURL`, in the European Central
   Bank's format, and are downloaded only after such a query is typed, at most once per `ratesMaxAgeHours`.
   The cached copy is used when offline, and the row says which day its rates are from.
+  `timeZones` turns on `time in tokyo`, `now in new york`, `tokyo time`, `3pm lisbon in sf` and
+  `15:30 utc to pst` (also `3 pm`, `15h30`, `noon`; `3pm tokyo` alone converts to your time). Places are the
+  cities macOS knows (`Asia/Tokyo` → `tokyo`), full identifiers, `utc+5:30`, and a built-in list of
+  nicknames, countries and abbreviations (`sf`, `nyc`, `la`, `bay area`, `uk`, `pst`, `cet`, `ist`…);
+  `pst` means the US west coast, summer or not. `cityAliases` adds your own names, e.g.
+  `{"home": "Europe/Lisbon", "office": "nyc"}`; a value is an identifier or any name Mestre knows.
+  `worldClocks` is what `time` alone lists, e.g. `["home", "sf", "tokyo"]`; empty shows nothing, so
+  `time` keeps finding Time Machine. A city name alone never becomes a row.
+  `dates` turns on date maths: `today + 90d`, `2026-01-01 + 3 weeks - 2d`, `now + 90 min`,
+  `dec 25 - today`, `2026-12-25 - 2026-01-01`, `days until christmas`, `weeks since 2026-01-01`,
+  `months between 2026-01-01 and dec 25`, `unix 1700000000` (13 digits are milliseconds), `now in unix`,
+  and a lone `2026-12-25` or `25 dec` for its weekday. Units are `d`, `w`, `mo`, `y`, `h`, `min`, `s`
+  and their words; dates are ISO (`2026-12-25`, `2026-12-25 15:00`) or a month name with a day
+  (`dec 25`, `25 december 2027`); a date without a year is this year, except after `until`, where a
+  day that has passed means next year. Results use your locale and calendar; the second copy action
+  copies ISO 8601 for a moment and the bare number for a span. Everything runs offline. With
+  `dates` on, `2026-12-25 - 2026-01-01` is a span of days, not a subtraction; `dates: false` (or
+  single-digit parts such as `2026-1-1`) keeps the plain arithmetic.
 - `includeSystemApps`: on by default, so Safari, Mail and the rest of /System/Applications
   come up alongside the apps you installed. Turn it off to search only `appDirectories`.
 - `ranking.systemAppPenalty`: points taken off Apple's built-in apps, enough to settle a
   near-tie in favour of an app you installed ("m" → Mestre before Mail) but not to bury a
   better match. At the default `usageWeight` one launch outweighs it. 0 treats them alike.
+
+## Script commands
+
+Any file in `scripts.directories` with a title in its header is a result. The header is the one
+[Raycast Script Commands](https://github.com/raycast/script-commands) use, so those scripts work
+unchanged; `@mestre.` works in place of `@raycast.` for every key and wins when both are there.
+Comments may start with `#`, `//` or `--`, so any language works. The script runs through its
+shebang (or, without one, an interpreter picked by the extension: sh, bash, zsh, py, rb, js, swift,
+applescript, pl, php), so it doesn't need its executable bit, in its own folder unless
+`currentDirectoryPath` says otherwise. Hidden files and `*.template.*` files are skipped.
+
+```bash
+#!/bin/bash
+
+# @raycast.schemaVersion 1
+# @raycast.title Search GitHub
+# @raycast.mode silent
+# @raycast.packageName Developer Utils
+# @raycast.icon 🐙
+# @raycast.argument1 { "type": "text", "placeholder": "Query", "percentEncoded": true }
+
+open "https://github.com/search?q=$1"
+```
+
+Save it as `~/.config/mestre/scripts/search-github.sh`; the folder is watched, so it shows up as
+soon as it is saved. Header keys:
+
+- `title` (required), `packageName` (the second line), `description`, `icon` (an emoji or an
+  image path relative to the script; a URL is ignored, so no icon is ever downloaded).
+- `mode`: `silent` closes the panel and shows the last line of output, if any, in a HUD;
+  `compact` keeps the panel open and shows the last line as a toast; `fullOutput` lists the
+  output in the panel under the keyword, one row per line, with Copy and Copy All Output
+  (a long output is cut to the visible rows; Copy All has all of it); `inline` runs like
+  `compact`, since Mestre has no auto-refreshing rows. A missing or unknown mode is `compact`.
+  When the panel has closed before a script finishes, its message shows in the HUD instead.
+- `argument1`…`argument3`: JSON with `type` (`text`, `password` or `dropdown` with `data`
+  `[{"title", "value"}]`), `placeholder`, `optional` and `percentEncoded`. ⇥ on such a script
+  (or ↩, when an argument is required) puts `script <title> ` in the field; type the values and
+  press ↩. Values are separated by spaces, a quoted phrase is one value, and the last argument
+  takes the rest of the line. An empty optional argument is passed as `""`. A `password`
+  argument is masked in the chip under the field, but the field itself shows what you type.
+- `needsConfirmation`: `true` asks before every run.
+- `currentDirectoryPath`: where the script runs; relative paths start at the script's folder.
+
+`script` alone lists every script; `script git` filters them. A non-zero exit shows the last
+line of stderr (or of stdout) as the error; a run past `timeoutSeconds` is stopped. Actions:
+Run, Show in Finder (⌘↩) and Edit Script. Mestre never logs what a script prints.
 
 ## Themes
 

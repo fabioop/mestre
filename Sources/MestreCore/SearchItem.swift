@@ -2,7 +2,7 @@ import AppKit
 
 /// What kind of thing a result is. Shown as a badge. Cases are added with each provider.
 public enum ItemKind: String, Codable, CaseIterable, Sendable {
-    case app, calculator, command, settings, process, shortcut, quicklink, web, window, clipboard, snippet, emoji, file, definition, bookmark, color, keepAwake, bluetooth, feature, event, translation
+    case app, calculator, command, settings, process, shortcut, quicklink, web, window, clipboard, snippet, emoji, file, definition, bookmark, color, keepAwake, bluetooth, feature, event, translation, media, reminder, contact, menuItem, script
 
     public var label: String {
         switch self {
@@ -27,6 +27,11 @@ public enum ItemKind: String, Codable, CaseIterable, Sendable {
         case .feature: return "Feature"
         case .event: return "Event"
         case .translation: return "Translation"
+        case .media: return "Media"
+        case .reminder: return "Reminder"
+        case .contact: return "Contact"
+        case .menuItem: return "Menu"
+        case .script: return "Script"
         }
     }
 
@@ -34,10 +39,11 @@ public enum ItemKind: String, Codable, CaseIterable, Sendable {
     public var subtitleRole: SubtitleRole {
         switch self {
         // A place or a category: it only matters once the row is about to be acted on.
-        case .app, .file, .settings, .shortcut, .window, .bookmark, .web, .quicklink, .definition:
+        case .app, .file, .settings, .shortcut, .window, .bookmark, .web, .quicklink, .definition, .script:
             return .metadata
-        // The second line is the answer, the grammar, or what the user would read anyway.
-        case .calculator, .color, .command, .process, .clipboard, .snippet, .emoji, .keepAwake, .bluetooth, .feature, .event, .translation:
+        // The second line is the answer, the grammar, or what the user would read anyway. A menu
+        // item's path tells apart two items of one name (File › Export › PDF, File › Print › PDF).
+        case .calculator, .color, .command, .process, .clipboard, .snippet, .emoji, .keepAwake, .bluetooth, .feature, .event, .translation, .media, .reminder, .contact, .menuItem:
             return .content
         }
     }
@@ -196,6 +202,27 @@ public struct ScoredItem: Identifiable {
     }
 }
 
+/// What ⇥ on a row puts before the field: `text` is prepended to what is typed, so providers
+/// see the same keyword query as before, and the scope chip shows `title` and `symbol`
+/// (with `panel.completion: text`, the text goes in the field instead).
+public struct Completion: Equatable, Sendable {
+    public let text: String
+    public let title: String
+    public let symbol: String?
+
+    public init(text: String, title: String, symbol: String?) {
+        self.text = text
+        self.title = title
+        self.symbol = symbol
+    }
+
+    /// A feature's keyword, as its chip; nil for one with nothing to complete (the calculator).
+    public init?(_ feature: HomeFeature) {
+        guard !feature.completion.isEmpty else { return nil }
+        self.init(text: feature.completion, title: feature.title, symbol: feature.symbol)
+    }
+}
+
 /// A source of results. Must be fast: every provider runs on the main thread on
 /// every keystroke, so anything slow belongs in a precomputed index.
 @MainActor
@@ -233,6 +260,9 @@ public protocol ResultProvider: AnyObject {
     /// What this provider understood from a query it owns, as short chips under the field
     /// ("for 45 min", "~/Documents"); [] when there is nothing to say.
     func chips(for query: Query) -> [String]
+    /// What ⇥ on one of this provider's rows completes to (a search quicklink, a script that
+    /// takes arguments); nil for a row that unfolds its actions instead.
+    func completion(for item: any SearchItem) -> Completion?
 }
 
 public extension ResultProvider {
@@ -244,6 +274,7 @@ public extension ResultProvider {
     func fallbackResults(for query: Query) -> [ScoredItem] { [] }
     nonisolated var declaredActions: [ItemAction] { [] }
     func chips(for query: Query) -> [String] { [] }
+    func completion(for item: any SearchItem) -> Completion? { nil }
     /// The id spelled out: "openWindows" → "Open Windows".
     nonisolated var title: String {
         var words = ""

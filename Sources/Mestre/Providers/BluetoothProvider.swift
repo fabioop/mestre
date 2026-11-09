@@ -38,7 +38,7 @@ struct BluetoothSettingsItem: SearchItem {
 
     static let open = ItemAction(id: "openSettings", title: "Open System Settings", icon: "gearshape")
     static let pairNew = BluetoothSettingsItem(title: "Pair a New Device…", subtitle: "Bluetooth settings", symbol: "plus.circle", url: SettingsPane(bundleIdentifier: "com.apple.BluetoothSettings", title: "Bluetooth").url)
-    static let allowAccess = BluetoothSettingsItem(title: "Allow Bluetooth Access…", subtitle: "Mestre needs it to list your devices", symbol: "lock", url: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth")!)
+    static let allowAccess = BluetoothSettingsItem(title: "Allow Bluetooth Access…", subtitle: "Mestre needs it to list your devices", symbol: "lock", url: SettingsPane.privacyURL("Privacy_Bluetooth"))
 }
 
 /// "pair <name>" lists the devices this Mac is paired with; Return connects or disconnects one.

@@ -61,7 +61,7 @@ final class OpenWindowProvider: ResultProvider {
     private static let penalty = 10.0
 
     func panelWillShow() {
-        guard settings.listWindows, WindowManager.hasPermission, !sampling,
+        guard settings.listWindows, Accessibility.isTrusted, !sampling,
               Date().timeIntervalSince(sampledAt) > settings.listRefreshSeconds else { return }
         sampling = true
         let me = ProcessInfo.processInfo.processIdentifier
@@ -86,7 +86,7 @@ final class OpenWindowProvider: ResultProvider {
     func perform(_ action: ItemAction, on item: any SearchItem) {
         guard let window = (item as? OpenWindowItem)?.window else { return }
         dismiss?()
-        guard WindowManager.hasPermission, let app = NSRunningApplication(processIdentifier: window.pid) else { NSSound.beep(); return }
+        guard Accessibility.isTrusted, let app = NSRunningApplication(processIdentifier: window.pid) else { NSSound.beep(); return }
         let target = SendableElement(element: window.element)
         // AX calls can block on a hung app: keep them off the main thread.
         Task.detached(priority: .userInitiated) {

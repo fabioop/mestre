@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let viewModel = SearchViewModel()
     private let textExpander = TextExpander()
     private let updater = Updater()
+    private let screenText = ScreenTextCapture()
     private var panelController: SearchPanelController!
     private var settingsWindow: SettingsWindowController?
     private var welcomeWindow: WelcomeWindowController?
@@ -45,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .quit: NSApp.terminate(nil)
             case .lockScreen: break  // handled by the provider
             case .toggleKeepAwake: self?.viewModel.keepAwake.manager.toggle()
+            case .copyTextFromScreen: self?.screenText.start()
             }
         }
         updater.apply(settings.config.updates)
@@ -233,16 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Modal yes/no for destructive commands. Mestre is an accessory app, so it has to
     /// activate to show the alert and hand focus back afterwards.
     private static func confirm(_ title: String) -> Bool {
-        let previous = NSWorkspace.shared.frontmostApplication
-        let alert = NSAlert()
-        alert.messageText = "\(title)?"
-        alert.informativeText = "Turn this off in Settings › Features › Commands."
-        alert.addButton(withTitle: title)
-        alert.addButton(withTitle: "Cancel")
-        NSApp.activate(ignoringOtherApps: true)
-        let confirmed = alert.runModal() == .alertFirstButtonReturn
-        if !confirmed { previous?.activate() }
-        return confirmed
+        Confirmation.ask("\(title)?", detail: "Turn this off in Settings › Features › Commands.", button: title)
     }
 
     private var explainedAccessibility = false
@@ -252,7 +245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func explainAccessibility() {
         guard !explainedAccessibility else { NSSound.beep(); return }
         explainedAccessibility = true
-        WindowManager.ensurePermission()
+        Accessibility.prompt()
         let previous = NSWorkspace.shared.frontmostApplication
         let alert = NSAlert()
         alert.messageText = "Mestre needs Accessibility access to move windows"
@@ -261,7 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "Later")
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertFirstButtonReturn {
-            WindowManager.openAccessibilitySettings()
+            Accessibility.openSettings()
         } else {
             previous?.activate()
         }
@@ -343,6 +336,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] commands in self?.viewModel.commands.settings = commands }
             .store(in: &cancellables)
 
+        // The switches commands declare with `requires` (`ocr.enabled`) live in other sections.
+        settings.$config
+            .sink { [weak self] config in self?.viewModel.commands.apply(config) }
+            .store(in: &cancellables)
+
         settings.$config
             .map(\.quickKeys)
             .removeDuplicates()
@@ -373,6 +371,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] bluetooth in self?.viewModel.bluetooth.settings = bluetooth }
             .store(in: &cancellables)
 
+        settings.$config
+            .map(\.media)
+            .removeDuplicates()
+            .sink { [weak self] media in self?.viewModel.media.settings = media }
+            .store(in: &cancellables)
+
         // The icon is a function of two inputs; one sink gets both, whatever order they change in.
         viewModel.keepAwake.manager.$session.removeDuplicates()
             .combineLatest(settings.$config.map(\.keepAwake.menuBarIcon).removeDuplicates())
@@ -395,9 +399,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         settings.$config
+            .map(\.menus)
+            .removeDuplicates()
+            .sink { [weak self] menus in self?.viewModel.menus.settings = menus }
+            .store(in: &cancellables)
+
+        settings.$config
             .map(\.clipboard)
             .removeDuplicates()
             .sink { [weak self] clipboard in self?.viewModel.clipboard.settings = clipboard }
+            .store(in: &cancellables)
+
+        // After `clipboard`: reading images waits for the history's own settings.
+        settings.$config
+            .map(\.ocr)
+            .removeDuplicates()
+            .sink { [weak self] ocr in
+                self?.screenText.settings = ocr
+                self?.viewModel.clipboard.monitor.ocr = ocr
+            }
             .store(in: &cancellables)
 
         settings.$config
@@ -431,6 +451,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         settings.$config
+            .map(\.reminders)
+            .removeDuplicates()
+            .sink { [weak self] reminders in self?.viewModel.reminders.settings = reminders }
+            .store(in: &cancellables)
+
+        settings.$config
             .map(\.translator)
             .removeDuplicates()
             .sink { [weak self] translator in self?.viewModel.translator.settings = translator }
@@ -443,9 +469,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         settings.$config
+            .map(\.contacts)
+            .removeDuplicates()
+            .sink { [weak self] contacts in self?.viewModel.contacts.settings = contacts }
+            .store(in: &cancellables)
+
+        settings.$config
             .map(\.colors)
             .removeDuplicates()
             .sink { [weak self] colors in self?.viewModel.colors.settings = colors }
+            .store(in: &cancellables)
+
+        settings.$config
+            .map(\.scripts)
+            .removeDuplicates()
+            .sink { [weak self] scripts in self?.viewModel.scripts.settings = scripts }
             .store(in: &cancellables)
 
         settings.$config

@@ -12,27 +12,82 @@ public struct ClipboardEntry: Codable, Equatable, Sendable, Identifiable {
     public let content: String
     public let sourceApp: String?
     public var copiedAt: Date
-    /// Lowercased head of the content, computed once so filtering never re-lowercases.
-    public let searchText: String
+    /// Text read from an image entry (`ocr.clipboardImages`): nil until it has been read, empty
+    /// when it had none, so each image is read once.
+    public private(set) var recognizedText: String?
+    /// Lowercased head of what this entry searches, computed once so filtering never
+    /// re-lowercases: the content's first `searchLength` characters, or for an image with text,
+    /// the first `recognizedSearchLength` characters of that text, precomposed like typed
+    /// queries so the byte search in `contains` matches é with é. Fuzzy matching reads only
+    /// its first `searchLength` characters.
+    public private(set) var searchText: String
 
     public static let searchLength = 400
+    public static let recognizedSearchLength = 4000
 
-    public init(id: UUID = UUID(), kind: Kind, content: String, sourceApp: String?, copiedAt: Date = Date()) {
+    public init(id: UUID = UUID(), kind: Kind, content: String, sourceApp: String?, copiedAt: Date = Date(), recognizedText: String? = nil) {
         self.id = id
         self.kind = kind
         self.content = content
         self.sourceApp = sourceApp
         self.copiedAt = copiedAt
         searchText = String(content.prefix(Self.searchLength)).lowercased()
+        if kind == .image, recognizedText != nil { setRecognizedText(recognizedText) }
     }
 
-    enum CodingKeys: String, CodingKey { case id, kind, content, sourceApp, copiedAt }
+    /// Stores what was read from the image and makes it searchable. Ignored for text and files.
+    public mutating func setRecognizedText(_ text: String?) {
+        guard kind == .image else { return }
+        recognizedText = text
+        searchText = hasRecognizedText
+            ? String(text!.prefix(Self.recognizedSearchLength)).lowercased().precomposedStringWithCanonicalMapping
+            : String(content.prefix(Self.searchLength)).lowercased()
+    }
+
+    /// An image whose text was read and had some.
+    public var hasRecognizedText: Bool { recognizedText?.isEmpty == false }
+
+    /// The image's text on one line, for the row's subtitle; built when a row renders.
+    public var recognizedSnippet: String? {
+        guard let text = recognizedText, !text.isEmpty else { return nil }
+        return Self.collapsed(text.prefix(Self.searchLength), limit: 60)
+    }
+
+    /// What fuzzy matching runs on: the short head of `searchText`.
+    var fuzzyText: String {
+        hasRecognizedText ? String(searchText.prefix(Self.searchLength)) : searchText
+    }
+
+    /// Whether `needle` (lowercased, precomposed) is a substring of what this entry searches.
+    func contains(_ needle: String) -> Bool {
+        hasRecognizedText ? Self.bytes(searchText, contain: needle) : searchText.contains(needle)
+    }
+
+    /// Whitespace runs as single spaces, cut at `limit` characters with an ellipsis.
+    static func collapsed(_ text: Substring, limit: Int) -> String {
+        let line = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return line.count > limit ? String(line.prefix(limit)) + "…" : line
+    }
+
+    /// UTF-8 byte search: an order of magnitude faster than `contains` over 4 000 characters.
+    /// Both sides are lowercased and Vision's output is precomposed, so bytes match as text does.
+    static func bytes(_ haystack: String, contain needle: String) -> Bool {
+        let found = haystack.utf8.withContiguousStorageIfAvailable { hay in
+            needle.utf8.withContiguousStorageIfAvailable { pin in
+                pin.isEmpty || memmem(hay.baseAddress, hay.count, pin.baseAddress, pin.count) != nil
+            }
+        }
+        return (found ?? nil) ?? haystack.contains(needle)
+    }
+
+    /// `text` came later: older files have no such key and decode as not read yet.
+    enum CodingKeys: String, CodingKey { case id, kind, content, sourceApp, copiedAt, text }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(id: try c.decode(UUID.self, forKey: .id), kind: try c.decode(Kind.self, forKey: .kind),
                   content: try c.decode(String.self, forKey: .content), sourceApp: try c.decodeIfPresent(String.self, forKey: .sourceApp),
-                  copiedAt: try c.decode(Date.self, forKey: .copiedAt))
+                  copiedAt: try c.decode(Date.self, forKey: .copiedAt), recognizedText: try c.decodeIfPresent(String.self, forKey: .text))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -42,14 +97,14 @@ public struct ClipboardEntry: Codable, Equatable, Sendable, Identifiable {
         try c.encode(content, forKey: .content)
         try c.encodeIfPresent(sourceApp, forKey: .sourceApp)
         try c.encode(copiedAt, forKey: .copiedAt)
+        try c.encodeIfPresent(recognizedText, forKey: .text)
     }
 
     /// First non-empty line, collapsed, for the row title.
     public var preview: String {
         // Bounded: this runs when the panel opens, and an entry can be a megabyte on one line.
         let line = content.prefix(Self.searchLength * 10).split(whereSeparator: \.isNewline).first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? ""
-        let collapsed = line.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        return collapsed.count > 120 ? String(collapsed.prefix(120)) + "…" : collapsed
+        return Self.collapsed(line, limit: 120)
     }
 
     public var lineCount: Int { content.split(whereSeparator: \.isNewline).count }
@@ -97,6 +152,22 @@ public struct ClipboardHistory: Codable, Equatable, Sendable {
         entries.insert(entry, at: 0)
     }
 
+    /// Names of the image entries whose text hasn't been read yet, newest first.
+    public var imagesAwaitingText: [String] {
+        entries.filter { $0.kind == .image && $0.recognizedText == nil }.map(\.content)
+    }
+
+    /// Stores the text read from the image named `name`. False when no entry has it any more.
+    @discardableResult
+    public mutating func setRecognizedText(_ text: String, forImage name: String) -> Bool {
+        var found = false
+        for index in entries.indices where entries[index].kind == .image && entries[index].content == name {
+            entries[index].setRecognizedText(text)
+            found = true
+        }
+        return found
+    }
+
     public mutating func remove(id: UUID) -> ClipboardEntry? {
         guard let index = entries.firstIndex(where: { $0.id == id }) else { return nil }
         return entries.remove(at: index)
@@ -120,13 +191,19 @@ public struct ClipboardHistory: Codable, Equatable, Sendable {
     /// then fuzzy matches to fill the remaining slots.
     public func matching(_ query: String, limit: Int) -> [ClipboardEntry] {
         guard !query.isEmpty else { return Array(entries.prefix(limit)) }
-        let needle = query.lowercased()
-        var hits = entries.filter { $0.searchText.contains(needle) }
+        // Precomposed for the byte search over image text; `String.contains` doesn't mind either form.
+        let needle = query.lowercased().precomposedStringWithCanonicalMapping
+        // One substring pass; the misses are kept as indices, needed only when fuzzy runs.
+        var hits: [ClipboardEntry] = []
+        var misses: [Int] = []
+        for (index, entry) in entries.enumerated() {
+            if entry.contains(needle) { hits.append(entry) } else { misses.append(index) }
+        }
         if hits.count < limit {
-            let rest = entries.filter { !$0.searchText.contains(needle) }
+            let rest = misses.lazy.map { entries[$0] }
             var scored: [(ClipboardEntry, Double)] = []
             for entry in rest {
-                guard let match = FuzzyMatcher.match(needle, in: entry.searchText) else { continue }
+                guard let match = FuzzyMatcher.match(needle, in: entry.fuzzyText) else { continue }
                 scored.append((entry, match.score))
             }
             hits += scored.sorted { $0.1 > $1.1 }.map(\.0)

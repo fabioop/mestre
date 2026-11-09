@@ -16,7 +16,7 @@ struct ClipboardItem: SearchItem {
     var subtitle: String? {
         let when = RelativeTime.describe(entry.copiedAt)
         let lines = entry.kind == .text && entry.lineCount > 1 ? " · \(entry.lineCount) lines" : ""
-        return [when + lines, entry.sourceApp].compactMap { $0 }.joined(separator: " · ")
+        return [entry.recognizedSnippet, when + lines, entry.sourceApp].compactMap { $0 }.joined(separator: " · ")
     }
     var icon: NSImage? { image }
     var iconSymbol: String? {
@@ -28,9 +28,11 @@ struct ClipboardItem: SearchItem {
     }
     var kind: ItemKind { .clipboard }
     /// Without Accessibility access there is no way to send ⌘V, so Copy comes first.
-    var actions: [ItemAction] { .pasteOrCopy(extra: [Self.delete]) }
+    var actions: [ItemAction] { .pasteOrCopy(extra: (entry.hasRecognizedText ? [Self.copyText] : []) + [Self.delete]) }
 
     static let delete = ItemAction(id: "delete", title: "Delete from History", icon: "trash", defaultKeys: ["cmd+backspace"])
+    /// On an image whose text was read (`ocr.clipboardImages`).
+    static let copyText = ItemAction(id: "copyText", title: "Copy Text", icon: "text.viewfinder", defaultKeys: ["cmd+t"])
 }
 
 /// "clip" lists the clipboard history, newest first; "clip invoice" filters it.
@@ -39,7 +41,7 @@ struct ClipboardItem: SearchItem {
 @MainActor
 final class ClipboardProvider: ResultProvider {
     nonisolated let id = "clipboard"
-    nonisolated let declaredActions = ItemAction.pasteAndCopy + [ClipboardItem.delete]
+    nonisolated let declaredActions = ItemAction.pasteAndCopy + [ClipboardItem.copyText, ClipboardItem.delete]
 
     let monitor = ClipboardMonitor()
     lazy var paster = Paster(clipboard: monitor)
@@ -75,6 +77,10 @@ final class ClipboardProvider: ResultProvider {
             paster.paste(entry, dismiss: dismiss)
         case "copy":
             monitor.copy(entry)
+            dismiss?()
+        case "copyText":
+            guard let text = entry.recognizedText, !text.isEmpty else { NSSound.beep(); return }
+            monitor.write(text)
             dismiss?()
         case "delete":
             monitor.remove(entry)

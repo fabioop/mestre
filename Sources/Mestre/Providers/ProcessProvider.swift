@@ -3,10 +3,15 @@ import MestreCore
 
 struct ProcessItem: SearchItem {
     let process: RunningProcess
+    /// The TCP port the row was found listening on ("kill :3000").
+    var port: UInt16? = nil
 
     var id: String { String(process.pid) }
     var title: String { process.name }
-    var subtitle: String? { "\(ProcessList.formatMemory(process.memoryBytes)) · PID \(process.pid)" }
+    var subtitle: String? {
+        let base = "\(ProcessList.formatMemory(process.memoryBytes)) · PID \(process.pid)"
+        return port.map { "Listening on :\($0) · \(base)" } ?? base
+    }
     /// Resolved only when a row renders: a LaunchServices lookup per visible item, not per process.
     var icon: NSImage? { NSRunningApplication(processIdentifier: process.pid)?.icon }
     var iconSymbol: String? { "cpu" }
@@ -42,6 +47,9 @@ final class ProcessProvider: ResultProvider {
     private var sampling = false
     private var exitWatchers: [pid_t: DispatchSourceProcess] = [:]
     private static let cacheLifetime: TimeInterval = 2
+    /// "kill :3000": pids per listening TCP port, read with the snapshot once a port is asked
+    /// for; nil while no sample has read them.
+    private var listening: [UInt16: [pid_t]]?
 
     func homeFeature() -> HomeFeature? {
         guard settings.enabled else { return nil }
@@ -50,8 +58,10 @@ final class ProcessProvider: ResultProvider {
 
     func results(for query: Query, limit: Int) -> [ScoredItem] {
         guard mode.matches(query) else { return [] }
-        resampleIfStale()
         let filter = query.remainder
+        let port = settings.ports ? PortLookup.port(in: filter) : nil
+        resampleIfStale(ports: port != nil)
+        if let port { return ScoredItem.pinned(Array(listeners(on: port).prefix(limit)), provider: self) }
         if filter.isEmpty { return ScoredItem.pinned(Array(items.prefix(limit)), provider: self) }
         return Ranker.rank(items, query: filter, limit: limit, provider: self)
     }
@@ -69,7 +79,7 @@ final class ProcessProvider: ResultProvider {
         // The row may be old; never signal a pid that now belongs to another program.
         guard ProcessList.path(of: process.pid) == process.path else {
             NSSound.beep()
-            resample()
+            resample(ports: listening != nil)
             return
         }
         watchExit(of: process.pid)
@@ -86,23 +96,36 @@ final class ProcessProvider: ResultProvider {
         source.setEventHandler { [weak self] in
             self?.exitWatchers[pid]?.cancel()
             self?.exitWatchers[pid] = nil
-            self?.resample()
+            self?.resample(ports: self?.listening != nil)
         }
         source.resume()
         exitWatchers[pid] = source
     }
 
-    private func resampleIfStale() {
-        guard Date().timeIntervalSince(sampledAt) > Self.cacheLifetime else { return }
-        resample()
+    /// The snapshot's processes listening on `port`.
+    private func listeners(on port: UInt16) -> [ProcessItem] {
+        guard let pids = listening?[port] else { return [] }
+        return items.filter { pids.contains($0.process.pid) }.map { ProcessItem(process: $0.process, port: port) }
     }
 
-    private func resample() {
+    /// Stale after `cacheLifetime`, or when a port is asked for and the sample didn't read them.
+    private func resampleIfStale(ports: Bool) {
+        guard Date().timeIntervalSince(sampledAt) > Self.cacheLifetime || (ports && listening == nil) else { return }
+        resample(ports: ports)
+    }
+
+    /// One background pass: the process list and, with `ports`, the TCP listeners of those
+    /// processes (own processes only, read with libproc). `onChange` fires when it lands.
+    private func resample(ports: Bool) {
         guard !sampling else { return }
         sampling = true
         Task {
-            let snapshot = await Task.detached(priority: .userInitiated) { ProcessList.snapshot() }.value
-            items = snapshot.map(ProcessItem.init)
+            let (snapshot, listening) = await Task.detached(priority: .userInitiated) {
+                let snapshot = ProcessList.snapshot()
+                return (snapshot, ports ? PortLookup.listeners(from: PortLookup.tcpSockets(of: snapshot.map(\.pid))) : nil)
+            }.value
+            items = snapshot.map { ProcessItem(process: $0) }
+            self.listening = listening
             sampledAt = Date()
             sampling = false
             onChange?()

@@ -118,22 +118,8 @@ public enum KeepAwakeParser {
 
     /// "18:30", "6pm", "6:15 pm", "18" → the next such time after `now` (today or tomorrow).
     static func time(of text: String, after now: Date, calendar: Calendar) -> Date? {
-        var clock = text.replacingOccurrences(of: " ", with: "")
-        var meridiem: String?
-        for suffix in ["am", "pm", "a.m.", "p.m."] where clock.hasSuffix(suffix) {
-            meridiem = String(suffix.prefix(1))
-            clock.removeLast(suffix.count)
-        }
-        let parts = clock.split(separator: ":", omittingEmptySubsequences: false)
-        guard (1...2).contains(parts.count), var hour = Int(parts[0]) else { return nil }
-        let minute = parts.count == 2 ? Int(parts[1]) : 0
-        guard let minute, (0...59).contains(minute) else { return nil }
-        if let meridiem {
-            guard (1...12).contains(hour) else { return nil }
-            hour = hour % 12 + (meridiem == "p" ? 12 : 0)
-        }
-        guard (0...23).contains(hour) else { return nil }
-        guard let today = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: now) else { return nil }
+        guard let (hour, minute) = ClockTime.parse(text),
+              let today = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: now) else { return nil }
         return today > now ? today : calendar.date(byAdding: .day, value: 1, to: today)
     }
 

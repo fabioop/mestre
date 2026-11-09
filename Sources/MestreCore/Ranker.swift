@@ -25,20 +25,31 @@ public enum Ranker {
     /// `lowercasedQuery` must be `query.lowercased()`, computed once per keystroke.
     public static func score(_ item: some SearchItem, query: String, lowercasedQuery: String, aliases: [String] = []) -> Match? {
         var best = FuzzyMatcher.match(query, in: item.title).map { Match(score: $0.score, source: .title) }
-        func consider(_ score: Double, _ source: MatchSource) {
-            guard let current = best else { best = Match(score: score, source: source); return }
-            let margin = current.source == .title ? keywordMargin : 0
-            if score > current.score + margin { best = Match(score: score, source: source) }
-        }
         for keyword in item.keywords {
-            if let score = FuzzyMatcher.match(query, in: keyword)?.score { consider(score, .keyword) }
+            if let score = FuzzyMatcher.match(query, in: keyword)?.score { consider(score, .keyword, into: &best) }
         }
         for alias in aliases {
             guard var score = FuzzyMatcher.match(query, in: alias)?.score else { continue }
             if alias.lowercased() == lowercasedQuery { score += exactAliasBonus }
-            consider(score, .alias(alias))
+            consider(score, .alias(alias), into: &best)
         }
         return best
+    }
+
+    /// `score` for candidates prepared once, for lists matched on every keystroke.
+    /// `query` must already be lowercased and split into characters.
+    public static func score(_ query: [Character], title: FuzzyMatcher.Prepared, keywords: some Sequence<FuzzyMatcher.Prepared>) -> Match? {
+        var best = FuzzyMatcher.match(query, in: title).map { Match(score: $0.score, source: .title) }
+        for keyword in keywords {
+            if let score = FuzzyMatcher.match(query, in: keyword)?.score { consider(score, .keyword, into: &best) }
+        }
+        return best
+    }
+
+    private static func consider(_ score: Double, _ source: MatchSource, into best: inout Match?) {
+        guard let current = best else { best = Match(score: score, source: source); return }
+        let margin = current.source == .title ? keywordMargin : 0
+        if score > current.score + margin { best = Match(score: score, source: source) }
     }
 
     private struct Candidate<Item: SearchItem> {

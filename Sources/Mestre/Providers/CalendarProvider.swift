@@ -38,7 +38,7 @@ struct CalendarSource: Equatable, Sendable {
 final class CalendarProvider: ResultProvider {
     nonisolated let id = "calendar"
     nonisolated let title = "Calendar"
-    nonisolated let declaredActions = [CalendarEventItem.join, CalendarEventItem.show, CalendarEventItem.copy, CalendarProvider.openPrivacy, CalendarProvider.openAccounts]
+    nonisolated let declaredActions = [CalendarEventItem.join, CalendarEventItem.show, CalendarEventItem.copy, PrivacyGate.openPrivacy, CalendarProvider.openAccounts]
 
     var settings = Config.CalendarEvents() {
         didSet {
@@ -55,23 +55,20 @@ final class CalendarProvider: ResultProvider {
     var onChange: (() -> Void)?
     var replaceQuery: ((String) -> Void)?
 
-    static let openPrivacy = ItemAction(id: "openPrivacy", title: "Open Privacy Settings", icon: "gear")
     static let openAccounts = ItemAction(id: "openAccounts", title: "Open Internet Accounts", icon: "gear")
-    private static let accessRow = SettingsLinkItem(id: "access", title: "Allow Calendar Access", subtitle: "Mestre needs it to list your events",
-                                                    iconSymbol: "lock", kind: .event, action: openPrivacy, url: SettingsPane.privacyURL("Privacy_Calendars"))
+    private let gate = PrivacyGate(anchor: SharedEventStore.privacyAnchor(for: .event), title: "Allow Calendar Access",
+                                   subtitle: "Mestre needs it to list your events", kind: .event,
+                                   status: { SharedEventStore.status(for: .event) },
+                                   request: { await SharedEventStore.requestAccess(to: .event) })
     private static let accountsRow = SettingsLinkItem(id: "accounts", title: "Add Calendar Accounts", subtitle: "Google, Microsoft 365, iCloud and more, in Internet Accounts",
                                                       iconSymbol: "person.crop.circle.badge.plus", kind: .event, action: openAccounts, url: SettingsPane.internetAccounts.url)
 
-    /// Connecting to the calendar daemon takes tens of ms, so the store is made off the main thread.
-    private var store: EKEventStore?
     private var events: [AgendaEvent]?
     /// False when macOS has no calendar at all, so the empty list points to Internet Accounts.
     private var hasCalendars = true
     private var isLoading = false
     /// Bumped when settings change, so a read started with the old ones is thrown away.
     private var loadGeneration = 0
-    /// Asked once per panel show, not on every keystroke.
-    private var access: EKAuthorizationStatus?
     private var isWatching = false
     private var loadedAt = Date.distantPast
 
@@ -89,24 +86,7 @@ final class CalendarProvider: ResultProvider {
 
     func results(for query: Query, limit: Int) -> [ScoredItem] {
         guard owns(query) else { return [] }
-        let status = access ?? EKEventStore.authorizationStatus(for: .event)
-        access = status
-        switch status {
-        case .fullAccess:
-            break
-        case .notDetermined:
-            if !isLoading {
-                isLoading = true
-                Task {
-                    await requestAccess()
-                    isLoading = false
-                    onChange?()
-                }
-            }
-            return []
-        default:
-            return ScoredItem.pinned([Self.accessRow], provider: self)
-        }
+        if let rows = gate.blockingRows(provider: self) { return rows }
         // A day boundary changes what the list spans, with no notification from the store.
         if events == nil || !Calendar.current.isDateInToday(loadedAt) { load() }
         let now = Date()
@@ -118,31 +98,15 @@ final class CalendarProvider: ResultProvider {
         return ScoredItem.pinned(Array(rows), provider: self)
     }
 
-    private func eventStore() async -> EKEventStore {
-        if let store { return store }
-        let made = await Task.detached(priority: .userInitiated) { EKEventStore() }.value
-        // Another caller (Settings, the panel) may have made one meanwhile: keep a single store.
-        if let store { return store }
-        store = made
-        return made
-    }
+    /// Shared with Reminders, made off the main thread on first use.
+    private func eventStore() async -> EKEventStore { await SharedEventStore.get() }
 
-    func panelWillShow() { access = nil }
+    func panelWillShow() { gate.reset() }
 
-    /// Asks macOS the first time; once refused, only System Settings can change it, so it opens there.
+    /// For Settings: asks macOS the first time, then opens System Settings.
     func requestAccess() async {
-        switch EKEventStore.authorizationStatus(for: .event) {
-        case .notDetermined:
-            _ = try? await eventStore().requestFullAccessToEvents()
-            // A store made before access can go on seeing no calendars, also after a later grant in
-            // System Settings; the next read makes a new one.
-            store = nil
-        case .fullAccess:
-            break
-        default:
-            NSWorkspace.shared.open(SettingsPane.privacyURL("Privacy_Calendars"))
-        }
-        access = nil
+        await SharedEventStore.requestAccess(to: .event)
+        gate.reset()
     }
 
     private func load() {
@@ -168,14 +132,10 @@ final class CalendarProvider: ResultProvider {
     private func watchForChanges() {
         guard !isWatching else { return }
         isWatching = true
-        // Any of Mestre's stores: the cached one is replaced after an access prompt.
-        NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.events = nil
-                self?.loadGeneration &+= 1
-                self?.onChange?()
-            }
-        }
+        SharedEventStore.observeChanges(invalidate: { [weak self] in
+            self?.events = nil
+            self?.loadGeneration &+= 1
+        }, refresh: { [weak self] in self?.onChange?() })
     }
 
     /// Every calendar macOS knows about, for Settings. Empty until access is granted.

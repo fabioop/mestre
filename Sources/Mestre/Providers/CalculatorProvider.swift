@@ -8,32 +8,61 @@ struct CalculatorItem: SearchItem {
     var number: String? = nil
     /// Not an answer yet: exchange rates on their way, or no rate. Nothing to copy.
     var isNotice = false
+    /// A moment from the time and date maths: what Copy ISO 8601 copies.
+    var iso: String? = nil
+    var symbol: String? = nil
+    /// Distinct per row when one query has several answers (`time` with world clocks).
+    var id = "calc"
 
-    var id: String { "calc" }
     var title: String { result }
     var subtitle: String? { expression }
     var icon: NSImage? { nil }
-    var iconSymbol: String? { number == nil && !isNotice ? "equal.square" : "arrow.left.arrow.right.square" }
+    var iconSymbol: String? { symbol ?? (number == nil && !isNotice ? "equal.square" : "arrow.left.arrow.right.square") }
     var kind: ItemKind { .calculator }
-    var actions: [ItemAction] { isNotice ? [] : number == nil ? [Self.copy] : [Self.copy, Self.copyNumber] }
+    var actions: [ItemAction] {
+        if isNotice { return [] }
+        if iso != nil { return [Self.copy, Self.copyISO] }
+        return number == nil ? [Self.copy] : [Self.copy, Self.copyNumber]
+    }
 
     static let copy = ItemAction(id: "copy", title: "Copy Result", icon: "doc.on.doc")
     /// No default key: cmd+shift+c belongs to Copy Path on every other row.
     static let copyNumber = ItemAction(id: "copyNumber", title: "Copy Number", icon: "number")
+    static let copyISO = ItemAction(id: "copyISO", title: "Copy ISO 8601", icon: "calendar")
 }
 
 /// Evaluates arithmetic and conversions typed into the search box. Return copies the result.
 @MainActor
 final class CalculatorProvider: ResultProvider {
     nonisolated let id = "calculator"
-    nonisolated let declaredActions = [CalculatorItem.copy, CalculatorItem.copyNumber]
-    var settings = Config.Calculator()
+    nonisolated let declaredActions = [CalculatorItem.copy, CalculatorItem.copyNumber, CalculatorItem.copyISO]
+    var settings = Config.Calculator() {
+        didSet { timeContext = TimeCalculator.Context(settings) }
+    }
+    /// Built when settings, the Mac's region or its zone change, not per keystroke or per open.
+    private var timeContext = TimeCalculator.Context()
+    private var observers: [NSObjectProtocol] = []
     var dismiss: (() -> Void)?
     var onChange: (() -> Void)? {
         didSet { rates.onChange = onChange }
     }
     var replaceQuery: ((String) -> Void)?
     private let rates = CurrencyRatesStore()
+
+    init() {
+        observers = [NSLocale.currentLocaleDidChangeNotification, .NSSystemTimeZoneDidChange].map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.timeContext = TimeCalculator.Context(self.settings)
+                }
+            }
+        }
+    }
+
+    func panelWillShow() {
+        if settings.enabled, settings.timeZones { TimeZoneNames.warmUp() }
+    }
 
     func homeFeature() -> HomeFeature? {
         guard settings.enabled else { return nil }
@@ -42,11 +71,24 @@ final class CalculatorProvider: ResultProvider {
 
     func results(for query: Query, limit: Int) -> [ScoredItem] {
         guard settings.enabled else { return [] }
+        // Before arithmetic: "2026-12-25 - 2026-01-01" is a span of days, not 1.
+        if let rows = timeRows(query) { return rows }
         if let value = Calculator.evaluate(lowercased: query.lowercased) {
             return ScoredItem.pinned([CalculatorItem(expression: query.text, result: Calculator.format(value, precision: settings.precision))], provider: self)
         }
         guard settings.units || settings.currency, let request = UnitConversion.parse(lowercased: query.lowercased, defaultCurrency: defaultCurrency) else { return [] }
         return request.isCurrency ? currencyRow(request, query) : unitRow(request, query)
+    }
+
+    private func timeRows(_ query: Query) -> [ScoredItem]? {
+        timeContext.now = Date()
+        let answers = TimeCalculator.answers(lowercased: query.lowercased, context: timeContext)
+        guard !answers.isEmpty else { return nil }
+        let items = answers.enumerated().map { offset, answer in
+            CalculatorItem(expression: answer.subtitle, result: answer.title, number: answer.number, iso: answer.iso,
+                           symbol: answer.kind == .clock ? "clock" : "calendar", id: offset == 0 ? "calc" : "calc.\(offset)")
+        }
+        return ScoredItem.pinned(items, provider: self)
     }
 
     private var defaultCurrency: String? {
@@ -79,7 +121,11 @@ final class CalculatorProvider: ResultProvider {
 
     func perform(_ action: ItemAction, on item: any SearchItem) {
         guard let calc = item as? CalculatorItem else { return }
-        (action.id == "copyNumber" ? calc.number ?? calc.result : calc.result).copyToPasteboard()
+        switch action.id {
+        case "copyNumber": (calc.number ?? calc.result).copyToPasteboard()
+        case "copyISO": (calc.iso ?? calc.result).copyToPasteboard()
+        default: calc.result.copyToPasteboard()
+        }
         dismiss?()
     }
 }

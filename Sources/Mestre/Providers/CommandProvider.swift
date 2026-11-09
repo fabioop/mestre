@@ -10,6 +10,8 @@ struct Command: SearchItem {
         case process(String, [String])
         /// Something inside Mestre; the provider resolves it.
         case inApp(CommandProvider.InApp)
+        /// A public-API system action, or one that reads a setting (volume step, Wi-Fi, apps).
+        case system(SystemAction)
     }
 
     let id: String
@@ -18,6 +20,9 @@ struct Command: SearchItem {
     var keywords: [String] = []
     /// Asks for confirmation first when `commands.confirmDestructive` is on.
     var destructive = false
+    /// A feature switch in another config section (`ocr.enabled`): off leaves the command out,
+    /// like a hidden one.
+    var requires: KeyPath<Config, Bool>? = nil
     let run: Run
 
     var icon: NSImage? { nil }
@@ -36,11 +41,29 @@ struct Command: SearchItem {
 @MainActor
 final class CommandProvider: ResultProvider {
     nonisolated let declaredActions = Command.actions
-    enum InApp { case settings, rebuildIndex, editConfig, showDefaults, quit, lockScreen, toggleKeepAwake }
+    enum InApp { case settings, rebuildIndex, editConfig, showDefaults, quit, lockScreen, toggleKeepAwake, copyTextFromScreen }
 
     nonisolated let id = "commands"
     var settings = Config.Commands() {
-        didSet { visible = Visibility(settings.enabled, hidden: settings.hidden).filter(Self.all) { [$0.id, $0.title] } }
+        didSet { updateVisible() }
+    }
+    /// The `requires` switches that are off in the config.
+    private var switchedOff: Set<KeyPath<Config, Bool>> = []
+    private static let requirements = Set(all.compactMap(\.requires))
+
+    /// Reads the switches commands declare with `requires`; the list is recomputed only when one flips.
+    func apply(_ config: Config) {
+        let off = Self.requirements.filter { !config[keyPath: $0] }
+        if off != switchedOff {
+            switchedOff = off
+            updateVisible()
+        }
+    }
+
+    private func updateVisible() {
+        let visibility = Visibility(settings.enabled, hidden: settings.hidden)
+        visible = visibility.filter(Self.all.filter { $0.requires.map { !switchedOff.contains($0) } ?? true }) { [$0.id, $0.title] }
+        setVolumeShown = settings.enabled && !visibility.hides([Self.setVolumeID])
     }
     var dismiss: (() -> Void)?
     var onChange: (() -> Void)?
@@ -62,18 +85,23 @@ final class CommandProvider: ResultProvider {
                 run: .appleScript("tell application \"Finder\" to empty trash")),
         Command(id: "toggleDarkMode", title: "Toggle Dark Mode", iconSymbol: "circle.lefthalf.filled", keywords: ["appearance", "light mode", "theme"],
                 run: .appleScript("tell application \"System Events\" to tell appearance preferences to set dark mode to not dark mode")),
-        Command(id: "ejectAll", title: "Eject All Disks", iconSymbol: "eject", keywords: ["unmount", "volumes"],
+        Command(id: "ejectAll", title: "Eject All Disks", iconSymbol: "eject", keywords: ["unmount", "volumes"], destructive: true,
                 run: .appleScript("tell application \"Finder\" to eject (every disk whose ejectable is true)")),
-        Command(id: "hideAllApps", title: "Hide All Apps", iconSymbol: "macwindow.on.rectangle", keywords: ["hide others", "hide windows"],
-                run: .appleScript("""
-                tell application "System Events"
-                    repeat with p in (every process whose visible is true and name is not "Finder" and name is not "Mestre")
-                        try
-                            set visible of p to false
-                        end try
-                    end repeat
-                end tell
-                """)),
+        Command(id: "volumeUp", title: "Volume Up", iconSymbol: "speaker.wave.3", keywords: ["louder", "sound"], run: .system(.volumeUp)),
+        Command(id: "volumeDown", title: "Volume Down", iconSymbol: "speaker.wave.1", keywords: ["quieter", "softer", "sound"], run: .system(.volumeDown)),
+        Command(id: "toggleMute", title: "Toggle Mute", iconSymbol: "speaker.slash", keywords: ["mute", "unmute", "volume", "sound"], run: .appleScript(VolumeQuery.toggleMuteScript)),
+        Command(id: "toggleWiFi", title: "Toggle Wi-Fi", iconSymbol: "wifi", keywords: ["wifi", "wireless", "airport", "network"], run: .system(.toggleWiFi)),
+        Command(id: "toggleHiddenFiles", title: "Toggle Hidden Files", iconSymbol: "eye", keywords: ["show hidden", "dotfiles", "finder"],
+                run: .process("/bin/sh", ["-c", """
+                case "$(/usr/bin/defaults read com.apple.finder AppleShowAllFiles 2>/dev/null)" in 1|YES|yes|TRUE|true) show=false;; *) show=true;; esac
+                /usr/bin/defaults write com.apple.finder AppleShowAllFiles -bool $show && /usr/bin/killall Finder
+                """])),
+        Command(id: "hideOtherApps", title: "Hide Other Apps", iconSymbol: "rectangle.on.rectangle.slash", keywords: ["hide others"], run: .system(.hideOtherApps)),
+        Command(id: "quitAllApps", title: "Quit All Apps", iconSymbol: "xmark.square", keywords: ["close all", "quit everything"], destructive: true, run: .system(.quitAllApps)),
+        Command(id: "hideAllApps", title: "Hide All Apps", iconSymbol: "macwindow.on.rectangle", keywords: ["hide windows"], run: .system(.hideAllApps)),
+        Command(id: "copyTextFromScreen", title: "Copy Text from Screen", iconSymbol: "text.viewfinder",
+                keywords: ["ocr", "grab text", "copy text", "screen text", "recognize text", "recognise text"],
+                requires: \Config.ocr.enabled, run: .inApp(.copyTextFromScreen)),
         Command(id: "keepAwake", title: "Keep Awake", iconSymbol: "cup.and.saucer", keywords: ["caffeinate", "no sleep", "stay awake"], run: .inApp(.toggleKeepAwake)),
         Command(id: "mestreSettings", title: "Mestre Settings", iconSymbol: "gearshape", keywords: ["preferences", "config"], run: .inApp(.settings)),
         Command(id: "editConfig", title: "Edit Mestre Config File", iconSymbol: "doc.text", keywords: ["json", "settings file"], run: .inApp(.editConfig)),
@@ -87,9 +115,16 @@ final class CommandProvider: ResultProvider {
     /// What the home screen and the quick-key assignment see.
     var visibleCommands: [Command] { visible }
 
+    /// "volume 30" offers a row that sets that level; it is hidden like any command.
+    static let setVolumeID = "setVolume"
+    private var setVolumeShown = true
+
     func results(for query: Query, limit: Int) -> [ScoredItem] {
         guard !query.isEmpty else { return [] }
-        return Ranker.rank(visible, query: query.text, limit: limit, provider: self)
+        let ranked = Ranker.rank(visible, query: query.text, limit: limit, provider: self)
+        guard setVolumeShown, limit > 0, let level = VolumeQuery.level(in: query.words) else { return ranked }
+        let row = Command(id: Self.setVolumeID, title: "Set Volume to \(level)%", iconSymbol: "speaker.wave.2", run: .appleScript(VolumeQuery.setScript(level: level)))
+        return ScoredItem.pinned([row], provider: self) + ranked.prefix(max(0, limit - 1))
     }
 
     func perform(_ action: ItemAction, on item: any SearchItem) {
@@ -126,6 +161,8 @@ final class CommandProvider: ResultProvider {
             ProcessRunner.run("/usr/bin/osascript", ["-e", source], label: command.title)
         case .process(let path, let arguments):
             ProcessRunner.run(path, arguments, label: command.title)
+        case .system(let action):
+            SystemActions.perform(action, title: command.title, settings: settings)
         }
     }
 

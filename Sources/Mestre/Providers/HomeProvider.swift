@@ -38,6 +38,10 @@ final class HomeProvider: ResultProvider {
         ScoredItem(item: FeatureItem(feature: feature), score: ScoredItem.pinnedScore, provider: self)
     }
 
+    func completion(for item: any SearchItem) -> Completion? {
+        (item as? FeatureItem).flatMap { Completion($0.feature) }
+    }
+
     func perform(_ action: ItemAction, on item: any SearchItem) {
         guard let feature = (item as? FeatureItem)?.feature else { return }
         replaceQuery?(feature.completion)

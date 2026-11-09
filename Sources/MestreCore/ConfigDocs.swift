@@ -18,12 +18,14 @@ public enum ConfigDocs {
         case .home: return "What an empty query shows: a list (recent, features, commands; hidden ids) or tiles."
         case .search: return "Where apps are found and how many results exist."
         case .ranking: return "Usage weight, running boost, built-in app penalty, provider weights, per-provider time budget."
-        case .calculator: return "Expressions and conversions typed straight into the panel: units, currency and exchange rates."
-        case .commands: return "System commands: on/off, confirmation, hidden ids."
+        case .calculator: return "Expressions and conversions typed straight into the panel: units, currency and exchange rates, time zones and date maths."
+        case .commands: return "System commands: on/off, confirmation, hidden ids, volume step, apps Quit All keeps."
         case .settingsPanes: return "System Settings panes as results."
-        case .processes: return "kill <name>: running processes by memory."
+        case .processes: return "kill <name>: running processes by memory; kill :<port>: what listens there."
         case .keepAwake: return "awake 45m / until 18:30: keep the Mac awake."
+        case .menus: return "menu <text>: search and choose the menu bar items of the app in front (Accessibility)."
         case .bluetooth: return "pair <name>: connect or disconnect paired Bluetooth devices."
+        case .media: return "media: play/pause, next, previous and what Music or Spotify is playing."
         case .shortcuts: return "Apple Shortcuts as results."
         case .webSearch: return "The engine behind \"Search the web for…\"."
         case .windows: return "Window layouts (halves, thirds, quarters) and their hotkeys."
@@ -35,9 +37,13 @@ public enum ConfigDocs {
         case .paths: return "~/ and /: browse folders."
         case .dictionary: return "define <word>."
         case .calendar: return "cal <text>: upcoming events from every macOS calendar account: days ahead, calendars left out, duplicates, meeting links."
+        case .reminders: return "remind <text>: add a reminder (fri 5pm, in 2h, !!, #list); remind or todo lists open ones. Default list and time."
         case .translator: return "tr <text>: on-device translation, target languages."
+        case .ocr: return "On-device text recognition: Copy Text from Screen, searchable text in copied images, languages, accuracy, size cap."
         case .bookmarks: return "Browser bookmarks: bm <text>."
+        case .contacts: return "contact <name>: contacts by name, organisation, email or phone; in ordinary searches too once access is granted."
         case .colors: return "Colour conversion rows."
+        case .scripts: return "Script commands: a folder of scripts in Raycast's Script Commands format, run from the panel."
         case .startup: return "Launch at login; missing leaves what macOS has."
         case .updates: return "In-app updates: scheduled checks, stable or beta channel, interval, feed."
         case .onboarding: return "The welcome window."
@@ -80,8 +86,8 @@ public enum ConfigDocs {
     }
 
     /// What a save must carry over from the existing file: the `_…` notes, and any top-level
-    /// section this build doesn't know (one a later version added, or one that was removed,
-    /// like `scripts`), so writing a setting never deletes what the user wrote there.
+    /// section this build doesn't know (one a later version added, or one that was removed),
+    /// so writing a setting never deletes what the user wrote there.
     public static func notes(in file: [String: Any]) -> [String: Any] {
         file.filter { $0.key.hasPrefix("_") || Config.CodingKeys(rawValue: $0.key) == nil }
     }

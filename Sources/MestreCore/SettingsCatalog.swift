@@ -26,8 +26,9 @@ public enum SettingsLibrary: String, CaseIterable, Sendable {
 }
 
 public enum SettingsFeature: String, CaseIterable, Sendable {
-    case clipboard, snippets, calculator, emoji, files, folders, dictionary, translator, calendar, bookmarks, colours
-    case commands, systemSettings, processes, keepAwake, bluetooth, appleShortcuts, web, windows
+    case clipboard, snippets, calculator, emoji, files, folders, dictionary, translator, calendar, reminders, bookmarks, contacts, colours
+    case commands, systemSettings, processes, keepAwake, bluetooth, media, appleShortcuts, scripts, web, windows
+    case menus
 
     public var title: String {
         switch self {
@@ -35,7 +36,9 @@ public enum SettingsFeature: String, CaseIterable, Sendable {
         case .processes: return "Kill Process"
         case .keepAwake: return "Keep Awake"
         case .appleShortcuts: return "Apple Shortcuts"
+        case .scripts: return "Script Commands"
         case .files: return "File Search"
+        case .menus: return "Menu Search"
         default: return rawValue.capitalized
         }
     }
@@ -51,16 +54,21 @@ public enum SettingsFeature: String, CaseIterable, Sendable {
         case .dictionary: return "Look up a word"
         case .translator: return "Translate text on this Mac"
         case .calendar: return "Events from Google, Microsoft 365, iCloud and more"
+        case .reminders: return "Add a reminder in plain words, tick off what's due"
         case .bookmarks: return "Search your browser bookmarks"
+        case .contacts: return "Email, call or message anyone in Contacts"
         case .colours: return "Convert #ff8800, rgb() and hsl()"
         case .commands: return "Sleep, Lock, Empty Trash and more"
         case .systemSettings: return "Open panes like Bluetooth by name"
         case .processes: return "Quit running processes"
         case .keepAwake: return "Stop the Mac from sleeping"
         case .bluetooth: return "Connect AirPods and other paired devices"
+        case .media: return "Play, pause, skip and see what is playing"
         case .appleShortcuts: return "Run your shortcuts"
+        case .scripts: return "Run your scripts, Raycast Script Commands too"
         case .web: return "Open addresses and search the web"
         case .windows: return "Move windows and switch between them"
+        case .menus: return "Search the menus of the app in front"
         }
     }
 
@@ -76,16 +84,21 @@ public enum SettingsFeature: String, CaseIterable, Sendable {
         case .dictionary: return "character.book.closed"
         case .translator: return "translate"
         case .calendar: return "calendar"
+        case .reminders: return "checklist"
         case .bookmarks: return "bookmark"
+        case .contacts: return "person.crop.circle"
         case .colours: return "paintpalette"
         case .commands: return "terminal"
         case .systemSettings: return "slider.horizontal.3"
         case .processes: return "xmark.octagon"
         case .keepAwake: return "cup.and.saucer"
         case .bluetooth: return "airpodspro"
+        case .media: return "playpause"
         case .appleShortcuts: return "square.2.layers.3d"
+        case .scripts: return "scroll"
         case .web: return "globe"
         case .windows: return "macwindow.on.rectangle"
+        case .menus: return "filemenu.and.selection"
         }
     }
 
@@ -100,16 +113,21 @@ public enum SettingsFeature: String, CaseIterable, Sendable {
         case .dictionary: return \.dictionary.enabled
         case .translator: return \.translator.enabled
         case .calendar: return \.calendar.enabled
+        case .reminders: return \.reminders.enabled
         case .bookmarks: return \.bookmarks.enabled
+        case .contacts: return \.contacts.enabled
         case .colours: return \.colors.enabled
         case .commands: return \.commands.enabled
         case .systemSettings: return \.settingsPanes.enabled
         case .processes: return \.processes.enabled
         case .keepAwake: return \.keepAwake.enabled
         case .bluetooth: return \.bluetooth.enabled
+        case .media: return \.media.enabled
         case .appleShortcuts: return \.shortcuts.enabled
+        case .scripts: return \.scripts.enabled
         case .web: return \.webSearch.enabled
         case .windows: return \.windows.enabled
+        case .menus: return \.menus.enabled
         }
     }
 }
@@ -237,6 +255,7 @@ public enum SettingsCatalog {
         option(.clipboard, "clipboard.items", "Items kept", "history size limit"),
         option(.clipboard, "clipboard.age", "Drop clipboard entries after", "history age expire days"),
         option(.clipboard, "clipboard.exclude", "Never record from these apps", "privacy password exclude ignore"),
+        option(.clipboard, "clipboard.ocr", "Search the text in copied images", "ocr screenshot recognise recognize vision"),
         option(.snippets, "snippets.formats", "Date and time format", "placeholder"),
         option(.snippets, "snippets.expansion", "Expand keywords while typing", "text expansion input monitoring"),
         option(.snippets, "snippets.exclude", "Never expand in these apps", "exclude ignore"),
@@ -244,6 +263,8 @@ public enum SettingsCatalog {
         option(.calculator, "calculator.units", "Unit conversions", "km miles length weight temperature convert"),
         option(.calculator, "calculator.currency", "Currency conversions", "exchange rates money euro dollar ecb"),
         option(.calculator, "calculator.defaultCurrency", "Default currency", "exchange money"),
+        option(.calculator, "calculator.timeZones", "Time zones", "time zone city clock world utc pst tokyo"),
+        option(.calculator, "calculator.dates", "Date maths", "date days until between unix timestamp calendar"),
         option(.emoji, "emoji.keyword", "Emoji keyword"),
         option(.emoji, "emoji.recent", "Recent emoji shown"),
         option(.files, "files.keyword", "File search keyword"),
@@ -262,13 +283,20 @@ public enum SettingsCatalog {
         option(.calendar, "calendar.days", "Days ahead", "agenda events"),
         option(.calendar, "calendar.duplicates", "Show an invitation in several accounts once", "merge duplicates"),
         option(.calendar, "calendar.exclude", "Calendars shown", "hide hidden google microsoft teams exchange outlook icloud account"),
+        option(.reminders, "reminders.keyword", "Reminders keyword", "todo task add"),
+        option(.reminders, "reminders.listKeyword", "Open reminders keyword", "todo list tasks"),
+        option(.reminders, "reminders.defaultList", "List for new reminders", "default inbox"),
+        option(.reminders, "reminders.defaultTime", "Time for reminders with only a day", "default due morning"),
         option(.bookmarks, "bookmarks.keyword", "Bookmarks keyword"),
         option(.bookmarks, "bookmarks.source", "Open in the browser they came from"),
         option(.bookmarks, "bookmarks.everywhere", "Bookmarks in ordinary searches"),
         option(.bookmarks, "bookmarks.browsers", "Browsers to read", "chrome firefox arc brave exclude"),
+        option(.contacts, "contacts.keyword", "Contacts keyword", "people address book"),
+        option(.contacts, "contacts.everywhere", "Contacts in ordinary searches", "people address book everywhere"),
+        option(.contacts, "contacts.default", "What Return does on a contact", "email call message facetime default action"),
         option(.colours, "colors.formats", "Colour formats", "hex rgb hsl swiftui"),
         option(.colours, "colors.names", "CSS colour names", "coral"),
-        option(.commands, "commands.confirm", "Confirm destructive commands", "restart shut down log out empty trash"),
+        option(.commands, "commands.confirm", "Confirm destructive commands", "restart shut down log out empty trash eject quit all"),
         option(.commands, "commands.shown", "Commands shown", "hide hidden"),
         option(.systemSettings, "panes.shown", "Panes shown", "hide hidden"),
         option(.processes, "processes.keyword", "Kill keyword"),
@@ -281,11 +309,22 @@ public enum SettingsCatalog {
         option(.keepAwake, "awake.battery", "End when battery is low", "power"),
         option(.bluetooth, "bluetooth.keyword", "Bluetooth keyword", "pair airpods"),
         option(.bluetooth, "bluetooth.close", "Close the panel once connected", "airpods"),
+        option(.media, "media.keyword", "Media keyword", "music spotify"),
+        option(.media, "media.nowPlaying", "Show what is playing", "now playing track music spotify automation"),
+        option(.media, "media.close", "Close the panel after a control", "dismiss play pause next"),
+        option(.media, "media.method", "Send controls as", "media keys accessibility apple events player"),
+        option(.media, "media.permission", "Accessibility access for media keys", "permission grant"),
+        option(.scripts, "scripts.keyword", "Scripts keyword", "script command raycast"),
+        option(.scripts, "scripts.everywhere", "Scripts in ordinary searches", "script command raycast"),
         option(.web, "web.engine", "Search engine", "google duckduckgo kagi bing"),
         option(.windows, "windows.gap", "Gap between windows", "spacing margin"),
         option(.windows, "windows.list", "Open windows as results", "switch"),
         option(.windows, "windows.shown", "Layouts shown", "hide hidden"),
         option(.windows, "windows.permission", "Accessibility access", "permission grant"),
+        option(.menus, "menus.keyword", "Menu search keyword", "menu bar items"),
+        option(.menus, "menus.everywhere", "Menu items in ordinary searches", "everywhere"),
+        option(.menus, "menus.depth", "Submenu levels read", "depth nested"),
+        option(.menus, "menus.permission", "Accessibility access for menus", "permission grant"),
     ]
 
     /// Every word has to appear somewhere; a match in the title beats one in the keywords.
@@ -412,17 +451,23 @@ public extension Config {
             result.paths = defaults.paths
             result.dictionary = defaults.dictionary
             result.translator = defaults.translator
+            result.ocr = defaults.ocr
             result.calendar = defaults.calendar
+            result.reminders = defaults.reminders
             result.bookmarks = defaults.bookmarks
+            result.contacts = defaults.contacts
             result.colors = defaults.colors
             result.commands = defaults.commands
             result.settingsPanes = defaults.settingsPanes
             result.processes = defaults.processes
             result.keepAwake = defaults.keepAwake
             result.bluetooth = defaults.bluetooth
+            result.media = defaults.media
             result.shortcuts = defaults.shortcuts
+            result.scripts = defaults.scripts
             result.webSearch = defaults.webSearch
             result.windows = defaults.windows
+            result.menus = defaults.menus
             result.snippets = defaults.snippets
             result.snippets.items = snippets.items
         case .shortcuts:
