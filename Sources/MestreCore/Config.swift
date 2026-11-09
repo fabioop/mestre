@@ -331,9 +331,10 @@ public struct Config: Codable, Equatable, Sendable {
         public var defaultCurrency: String = ""
         /// Rates older than this are downloaded again when next needed.
         public var ratesMaxAgeHours: Double = 24
-        /// Daily rates for every currency: the free currency-api on jsDelivr. Also reads open.er-api.com and the
-        /// European Central Bank's XML (30 currencies).
-        public var ratesURL: String = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/eur.min.json"
+        /// The European Central Bank's daily reference rates (about 30 currencies), straight from the
+        /// bank. Another source is the user's choice: its XML format, or JSON shaped like
+        /// `{"date": …, "eur": {"usd": 1.16}}` or `{"base_code": "EUR", "rates": {"USD": 1.16}}`.
+        public var ratesURL: String = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
         /// `time in tokyo`, `3pm lisbon in sf`, `15:30 utc to pst`.
         public var timeZones: Bool = true
         /// `today + 90d`, `dec 25 - today`, `days until christmas`, `unix 1700000000`.
@@ -468,6 +469,8 @@ public struct Config: Codable, Equatable, Sendable {
         /// Show the track and state, from the players' own change notifications; the first time the
         /// keyword is typed while one runs, it is asked once by Apple Event (Automation prompt).
         public var nowPlaying: Bool = true
+        /// The controls also rank in ordinary searches ("pause", "next"); off keeps them under the keyword.
+        public var searchEverywhere: Bool = true
         /// Bundle ids of the players to listen to and control, in order of preference.
         public var players: [String] = ["com.apple.Music", "com.spotify.client"]
         public var method: Method = .keys
@@ -480,13 +483,14 @@ public struct Config: Codable, Equatable, Sendable {
 
         public init() {}
 
-        enum CodingKeys: String, CodingKey { case enabled, keyword, nowPlaying, players, method, closeOnControl, playPauseWords, nextWords, previousWords }
+        enum CodingKeys: String, CodingKey { case enabled, keyword, nowPlaying, searchEverywhere, players, method, closeOnControl, playPauseWords, nextWords, previousWords }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
             keyword = try c.decodeKeyword(forKey: .keyword, default: keyword)
             nowPlaying = try c.decodeIfPresent(Bool.self, forKey: .nowPlaying) ?? nowPlaying
+            searchEverywhere = try c.decodeIfPresent(Bool.self, forKey: .searchEverywhere) ?? searchEverywhere
             players = try c.decodeIfPresent([String].self, forKey: .players) ?? players
             method = c.decodeChoice(forKey: .method) ?? method
             closeOnControl = try c.decodeIfPresent(Bool.self, forKey: .closeOnControl) ?? closeOnControl

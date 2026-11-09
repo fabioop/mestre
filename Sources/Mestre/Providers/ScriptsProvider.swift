@@ -289,26 +289,24 @@ final class ScriptsProvider: ResultProvider {
 
     // MARK: Editing
 
-    /// Apps that would run a script rather than show it: Edit never opens one of these.
-    private nonisolated static let runners: Set<String> = ["com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable", "net.kovidgoyal.kitty", "com.mitchellh.ghostty", "org.alacritty", "org.python.PythonLauncher"]
-
     /// Opens the script in `scripts.editor`, else in the app its type opens in when that is an
     /// editor, else in the default text editor. The LaunchServices lookups run off the main thread.
     private func edit(_ url: URL) {
         let editor = settings.editor
+        let terminals = Set(settings.terminalApps)
         Task {
-            let app = await Task.detached(priority: .userInitiated) { Self.editorApp(for: url, editor: editor) }.value
+            let app = await Task.detached(priority: .userInitiated) { Self.editorApp(for: url, editor: editor, terminals: terminals) }.value
             guard let app else { NSSound.beep(); report("No editor found for \(url.lastPathComponent)"); return }
             dismiss?()
             NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration(), completionHandler: nil)
         }
     }
 
-    private nonisolated static func editorApp(for url: URL, editor: String) -> URL? {
+    private nonisolated static func editorApp(for url: URL, editor: String, terminals: Set<String>) -> URL? {
         let workspace = NSWorkspace.shared
         if editor.hasPrefix("/") || editor.hasPrefix("~") { return URL(fileURLWithPath: NSString(string: editor).expandingTildeInPath) }
         if !editor.isEmpty { return workspace.urlForApplication(withBundleIdentifier: editor) }
-        if let own = workspace.urlForApplication(toOpen: url), let id = Bundle(url: own)?.bundleIdentifier, !runners.contains(id) { return own }
+        if let own = workspace.urlForApplication(toOpen: url), let id = Bundle(url: own)?.bundleIdentifier, !terminals.contains(id) { return own }
         return workspace.urlForApplication(toOpen: .plainText)
     }
 

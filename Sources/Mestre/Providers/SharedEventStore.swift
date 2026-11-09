@@ -23,7 +23,7 @@ enum SharedEventStore {
 
     // MARK: Access
 
-    static func status(for type: EKEntityType) -> PrivacyGate.Status {
+    nonisolated static func status(for type: EKEntityType) -> PrivacyGate.Status {
         switch EKEventStore.authorizationStatus(for: type) {
         case .fullAccess: return .granted
         case .notDetermined: return .undetermined

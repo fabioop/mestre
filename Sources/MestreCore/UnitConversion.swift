@@ -345,8 +345,8 @@ public struct CurrencyRates: Codable, Equatable, Sendable {
         text.first == "{" ? parse(json: Data(text.utf8), fetchedAt: fetchedAt) : parse(ecbXML: text, fetchedAt: fetchedAt)
     }
 
-    /// Reads `{"date": "2026-11-07", "eur": {"usd": 1.16, …}}` (the free currency-api on jsDelivr) or
-    /// `{"base_code": "EUR", "rates": {"USD": 1.16, …}}` (open.er-api.com). Only known codes are kept.
+    /// Reads `{"date": "2026-11-07", "eur": {"usd": 1.16, …}}` or
+    /// `{"base_code": "EUR", "rates": {"USD": 1.16, …}}`, for a `ratesURL` the user chose. Only known codes are kept.
     public static func parse(json data: Data, fetchedAt: Date = Date()) -> CurrencyRates? {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         let base = (object["base_code"] as? String) ?? object.keys.sorted().first { object[$0] is [String: Any] && knownCodes.contains($0.uppercased()) }
@@ -356,7 +356,7 @@ public struct CurrencyRates: Codable, Equatable, Sendable {
             let code = code.uppercased()
             if knownCodes.contains(code), let rate = (value as? NSNumber)?.doubleValue, rate.isFinite, rate > 0 { rates[code] = rate }
         }
-        // open.er-api.com gives a full RFC 1123 timestamp; its Unix twin becomes the same "2026-11-07" form.
+        // A full RFC 1123 timestamp is too long for a row: its Unix twin becomes the same "2026-11-07" form.
         let date = (object["date"] as? String)
             ?? (object["time_last_update_unix"] as? NSNumber).map { ISO8601DateFormatter.string(from: Date(timeIntervalSince1970: $0.doubleValue), timeZone: .gmt, formatOptions: .withFullDate) }
             ?? (object["time_last_update_utc"] as? String) ?? ""

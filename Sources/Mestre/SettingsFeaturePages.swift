@@ -350,6 +350,7 @@ private struct MediaOptions: View {
     var body: some View {
         KeywordField(label: "Keyword", value: $settings.config.media.keyword, placeholder: "media").setting("media.keyword")
         Toggle("Show what Music or Spotify is playing", isOn: $settings.config.media.nowPlaying).setting("media.nowPlaying")
+        Toggle("Controls in ordinary searches", isOn: $settings.config.media.searchEverywhere).setting("media.everywhere")
         Toggle("Close the panel after a control", isOn: $settings.config.media.closeOnControl).setting("media.close")
         Picker("Send controls as", selection: $settings.config.media.method) {
             Text("Media keys").tag(Config.Media.Method.keys)

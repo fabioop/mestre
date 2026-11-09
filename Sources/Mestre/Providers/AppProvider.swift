@@ -161,9 +161,6 @@ enum Feedback {
 
     static weak var panel: SearchViewModel?
 
-    /// `panel.toastSeconds`, for a caller whose HUD lasts as long as a footer toast.
-    static var toastSeconds: Double { panel?.layout.toastSeconds ?? Config.Panel().toastSeconds }
-
     static func toast(_ text: String, outsidePanel: OutsidePanel = .none) {
         if let panel, panel.canShowToast { panel.showToast(text); return }
         if case .hud(let seconds) = outsidePanel { ToastHUD.show(text, seconds: seconds) }

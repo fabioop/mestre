@@ -311,6 +311,7 @@ public enum SettingsCatalog {
         option(.bluetooth, "bluetooth.close", "Close the panel once connected", "airpods"),
         option(.media, "media.keyword", "Media keyword", "music spotify"),
         option(.media, "media.nowPlaying", "Show what is playing", "now playing track music spotify automation"),
+        option(.media, "media.everywhere", "Controls in ordinary searches", "play pause next previous search"),
         option(.media, "media.close", "Close the panel after a control", "dismiss play pause next"),
         option(.media, "media.method", "Send controls as", "media keys accessibility apple events player"),
         option(.media, "media.permission", "Accessibility access for media keys", "permission grant"),

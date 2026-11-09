@@ -91,6 +91,8 @@ final class MediaProvider: ResultProvider {
                 let rows: [MediaItem] = (nowPlayingItem().map { [$0] } ?? []) + controlItems()
                 return ScoredItem.pinned(Array(rows.prefix(limit)), provider: self)
             }
+        } else if !settings.searchEverywhere {
+            return []
         }
         return Ranker.rank(controlItems(), query: underKeyword ? query.remainder : query.text, limit: limit, provider: self)
     }

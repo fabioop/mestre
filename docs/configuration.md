@@ -66,7 +66,7 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "currency": true,
     "defaultCurrency": "",
     "ratesMaxAgeHours": 24,
-    "ratesURL": "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/eur.min.json",
+    "ratesURL": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
     "timeZones": true,
     "dates": true,
     "cityAliases": {},
@@ -113,6 +113,7 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "enabled": true,
     "keyword": "media",
     "nowPlaying": true,
+    "searchEverywhere": true,
     "players": ["com.apple.Music", "com.spotify.client"],
     "method": "keys",
     "closeOnControl": true,
@@ -132,6 +133,7 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "timeoutSeconds": 30,
     "extraPath": ["/opt/homebrew/bin", "/usr/local/bin"],
     "editor": "",
+    "terminalApps": ["com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable", "net.kovidgoyal.kitty", "com.mitchellh.ghostty", "org.alacritty", "org.python.PythonLauncher"],
     "hudSeconds": 2
   },
   "webSearch": {
@@ -232,7 +234,8 @@ and reloads it as soon as you save it in an editor. Every key is optional.
     "languages": [],
     "recognitionLevel": "accurate",
     "keepLineBreaks": true,
-    "maxImagePixels": 16000000
+    "maxImagePixels": 16000000,
+    "hudSeconds": 2
   },
   "files": {
     "enabled": true,
@@ -280,7 +283,7 @@ what most people change. Technical keys live only in the file: wait times and po
 `ranking.systemAppPenalty`, `ranking.providers`, `ranking.budgetMs`, `quickKeys.keys`,
 `clipboard.maxTextBytes`, `clipboard.pollIntervalSeconds`, `files.debounceSeconds`, `files.minimumLength`,
 `dictionary.debounceSeconds`, `calculator.ratesMaxAgeHours`, `calculator.ratesURL`, `calculator.cityAliases`, `calculator.worldClocks`, `calendar.maxResults`, `calendar.meetingHosts`, `translator.debounceSeconds`, `translator.maxCharacters`, `ocr` (except `ocr.clipboardImages`), `bookmarks.minimumLength`, `bookmarks.penalty`, `contacts.minimumLength`, `contacts.maxResults`, `contacts.callScheme`, `contacts.messageScheme`, `paste`,
-`shortcuts.refreshIntervalSeconds`, `scripts.directories`, `scripts.timeoutSeconds`, `scripts.extraPath`, `scripts.editor`, `scripts.hudSeconds`, `windows.listRefreshSeconds`, `emoji.prefix`, `media.players`, the `media`
+`shortcuts.refreshIntervalSeconds`, `scripts.directories`, `scripts.timeoutSeconds`, `scripts.extraPath`, `scripts.editor`, `scripts.terminalApps`, `scripts.hudSeconds`, `windows.listRefreshSeconds`, `emoji.prefix`, `media.players`, the `media`
 search words (`playPauseWords`, `nextWords`, `previousWords`), `updates`, and `debug`.
 
 Each Settings page has a reset button, and General can reset everything. Resets keep your quicklinks,
@@ -422,6 +425,7 @@ Without `--default` it prints the settings in force.
   the keyboard's ⏯ ⏭ ⏮, so whatever owns Now Playing reacts (Music, Spotify, a browser tab); macOS
   asks for Accessibility access on the first control. `player` sends an Apple Event to the running
   player instead (Music and Spotify only; macOS asks once for Automation consent per player).
+  `searchEverywhere: false` keeps the controls out of ordinary searches, so only the keyword lists them.
   `closeOnControl` closes the panel after a control from an ordinary search; under the keyword it
   stays open so the now-playing row follows the change. `nowPlaying` shows the track, artist and
   state, read from the players' own change notifications (no polling). A player that was already
@@ -436,7 +440,8 @@ Without `--default` it prints the settings in force.
   searches), `timeoutSeconds` (a run is stopped after this, at least 1), `extraPath` (put
   before PATH, which an app opened from the Dock keeps to the system folders), `editor` (a
   bundle identifier or app path for Edit Script; empty opens the app the file's type opens in,
-  or the default text editor when that app is a terminal that would run it) and `hudSeconds`
+  or the default text editor when that app is one of `terminalApps`, the bundle identifiers of
+  apps that would run the script instead of showing it; add your terminal if it isn't listed) and `hudSeconds`
   (how long a script's message shows near the bottom of the screen when the footer can't show
   it: the panel has closed, `panel.showFooter` is off or `panel.toastSeconds` is 0; 0 shows
   none). See
@@ -528,7 +533,7 @@ Without `--default` it prints the settings in force.
   owner-only temporary folder, deleted as soon as it's read. The text is copied to the clipboard and a toast
   says how many lines. `keepLineBreaks: false` joins the lines with spaces. macOS asks for Screen Recording the first
   time, and that first try captures nothing. Without the permission a capture shows only the desktop, and the toast says where to allow it.
-  The toast appears near the bottom of the screen for `panel.toastSeconds`, because the panel is already closed.
+  The toast appears near the bottom of the screen for `ocr.hudSeconds` (0 shows none), because the panel is already closed.
   To run it from anywhere, bind the command's id: `"hotkeys": {"ctrl+option+t": "copyTextFromScreen"}`.
   With `clipboardImages` (on by default), each image that enters clipboard history has its text read once, in
   the background at low priority, and stored with the entry in `history.json`. Typing words from it
@@ -567,17 +572,19 @@ Without `--default` it prints the settings in force.
 - `calculator`: `enabled` and `precision` (significant digits). A comma followed by three
   digits is a thousands separator; otherwise it is a decimal point (`3,5*2` = 7).
   `units` turns on `10 km to mi` and `72f in c` (also `in`, `as`, `em`, `para`) for length, mass, temperature,
-  volume, area, speed, data and time. `currency` turns on `100 usd to eur` for every currency in use
-  (ISO 4217, by code, symbol or name) plus `btc` and `eth`; `100 usd` alone goes to `defaultCurrency`, or the
-  Mac's region when that is empty.
+  volume, area, speed, data and time. `currency` turns on `100 usd to eur`, by code, symbol or
+  name, for every currency the rates source covers; one it doesn't cover shows nothing. `100 usd` alone goes
+  to `defaultCurrency`, or the Mac's region when that is empty.
   While you type, up to `suggestions` rows answer early: an amount with no target converts to
   `defaultCurrency` then `suggestedCurrencies` (`15 ringgit`, `15 myr to`), or to the `suggestedUnits` in its
   category (`10 km` → mi, m, ft…; `30 c` → °F). A name being typed matches by its start: `15 ring` is MYR,
   `10 kilom` km, `1 ho` hours, `15 krona` both SEK and ISK, and the same after `to` (`15 myr to e`,
   `10 km to fe`). Currency names come from macOS in English and your Mac's language. Written together
   with the number, only a full name counts (`10km` yes, `4k` and `3d` stay app searches).
-  Rates come from `ratesURL`: by default the free currency-api on jsDelivr (no key, every currency); the
-  ECB's daily XML and open.er-api.com's JSON work too. They are downloaded only after such a query is
+  Rates come from `ratesURL`: by default the European Central Bank's daily reference rates, straight from
+  the bank (about 30 currencies). To cover more, point it at a source you trust: the ECB's XML format, or
+  JSON shaped like `{"date": …, "eur": {"usd": 1.16}}` or `{"base_code": "EUR", "rates": {"USD": 1.16}}`
+  (codes Mestre knows: ISO 4217 plus `btc` and `eth`). They are downloaded only after such a query is
   typed, at most once per `ratesMaxAgeHours`, and again when `ratesURL` changes. The cached copy is used
   when offline, and the row says which day its rates are from.
   `timeZones` turns on `time in tokyo`, `now in new york`, `tokyo time`, `3pm lisbon in sf` and

@@ -5,7 +5,7 @@ import Testing
 @Suite struct MediaTests {
     @Test func configDefaultsAndCleanup() throws {
         let defaults = Config().media
-        #expect(defaults.enabled && defaults.nowPlaying && defaults.closeOnControl)
+        #expect(defaults.enabled && defaults.nowPlaying && defaults.closeOnControl && defaults.searchEverywhere)
         #expect(defaults.keyword == "media" && defaults.method == .keys)
         #expect(defaults.players == ["com.apple.Music", "com.spotify.client"])
         let config = try JSONDecoder().decode(Config.self, from: Data(#"{"media": {"keyword": "Tunes now", "method": "PLAYER", "nextWords": [" Skip ", ""], "nowPlaying": false}}"#.utf8))

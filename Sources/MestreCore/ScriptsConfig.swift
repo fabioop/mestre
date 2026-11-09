@@ -17,12 +17,16 @@ extension Config {
         /// App that Edit Script opens a script in: a bundle identifier or an app path; empty uses
         /// the default text editor, never the app that would run the script.
         public var editor: String = ""
+        /// Apps that would run a script instead of showing it (bundle identifiers): when one of them is
+        /// what opens the script's type, Edit Script uses the default text editor instead.
+        public var terminalApps: [String] = ["com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable", "net.kovidgoyal.kitty",
+                                             "com.mitchellh.ghostty", "org.alacritty", "org.python.PythonLauncher"]
         /// How long the HUD shown after the panel has closed stays up.
         public var hudSeconds: Double = 2
 
         public init() {}
 
-        enum CodingKeys: String, CodingKey { case enabled, keyword, directories, searchEverywhere, timeoutSeconds, extraPath, editor, hudSeconds }
+        enum CodingKeys: String, CodingKey { case enabled, keyword, directories, searchEverywhere, timeoutSeconds, extraPath, editor, terminalApps, hudSeconds }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -34,6 +38,7 @@ extension Config {
             timeoutSeconds = max(1, try c.decodeIfPresent(Double.self, forKey: .timeoutSeconds) ?? timeoutSeconds)
             extraPath = try c.decodeIfPresent([String].self, forKey: .extraPath) ?? extraPath
             editor = (try c.decodeIfPresent(String.self, forKey: .editor) ?? editor).trimmingCharacters(in: .whitespaces)
+            terminalApps = try c.decodeIfPresent([String].self, forKey: .terminalApps) ?? terminalApps
             hudSeconds = max(0, try c.decodeIfPresent(Double.self, forKey: .hudSeconds) ?? hudSeconds)
         }
 

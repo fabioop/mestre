@@ -32,7 +32,7 @@ final class ScreenTextCapture {
         if !CGPreflightScreenCaptureAccess(), !hasAskedForAccess {
             hasAskedForAccess = true
             CGRequestScreenCaptureAccess()
-            Feedback.toast(Self.accessHint, outsidePanel: .hud(seconds: Feedback.toastSeconds))
+            Feedback.toast(Self.accessHint, outsidePanel: .hud(seconds: settings.hudSeconds))
             return
         }
         isRunning = true
@@ -51,9 +51,9 @@ final class ScreenTextCapture {
             break
         case .text(let text, let lines):
             // A copy like any other: clipboard history records it (unless an excluded app is in front).
-            text.copyToPasteboard(toast: lines == 1 ? "Copied 1 line" : "Copied \(lines) lines", outsidePanel: .hud(seconds: Feedback.toastSeconds))
+            text.copyToPasteboard(toast: lines == 1 ? "Copied 1 line" : "Copied \(lines) lines", outsidePanel: .hud(seconds: settings.hudSeconds))
         case .noText:
-            Feedback.toast(CGPreflightScreenCaptureAccess() ? "No text found" : "No text found. " + Self.accessHint, outsidePanel: .hud(seconds: Feedback.toastSeconds))
+            Feedback.toast(CGPreflightScreenCaptureAccess() ? "No text found" : "No text found. " + Self.accessHint, outsidePanel: .hud(seconds: settings.hudSeconds))
         }
     }
 

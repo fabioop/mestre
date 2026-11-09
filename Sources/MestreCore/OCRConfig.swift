@@ -21,10 +21,13 @@ public extension Config {
         public var keepLineBreaks: Bool = true
         /// Larger images are scaled down to this many pixels before reading, which bounds the work.
         public var maxImagePixels: Int = 16_000_000
+        /// How long Copy Text from Screen's message ("Copied 3 lines") stays near the bottom of the
+        /// screen. Its own key: the panel is closed by then, so `panel.toastSeconds` doesn't apply.
+        public var hudSeconds: Double = 2
 
         public init() {}
 
-        enum CodingKeys: String, CodingKey { case enabled, clipboardImages, languages, recognitionLevel, keepLineBreaks, maxImagePixels }
+        enum CodingKeys: String, CodingKey { case enabled, clipboardImages, languages, recognitionLevel, keepLineBreaks, maxImagePixels, hudSeconds }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -35,6 +38,7 @@ public extension Config {
             recognitionLevel = c.decodeChoice(forKey: .recognitionLevel) ?? recognitionLevel
             keepLineBreaks = try c.decodeIfPresent(Bool.self, forKey: .keepLineBreaks) ?? keepLineBreaks
             maxImagePixels = min(100_000_000, max(250_000, try c.decodeIfPresent(Int.self, forKey: .maxImagePixels) ?? maxImagePixels))
+            hudSeconds = max(0, try c.decodeIfPresent(Double.self, forKey: .hudSeconds) ?? hudSeconds)
         }
 
         /// Whether copied images get their text read.

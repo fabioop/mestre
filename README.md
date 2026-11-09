@@ -12,7 +12,7 @@ A free, open-source launcher for macOS. Fast, keyboard-first, and configured by 
 
 - **Fast.** The panel shows in under 50 ms and results follow every keystroke. Mestre uses no CPU while it waits.
 - **Configured by one file.** Every behaviour, shortcut and number has a key in `~/.config/mestre/config.json`. The Settings window edits the same file.
-- **Private.** Your data stays on your Mac: no account, no analytics, no tracking. Translation and text recognition run on-device, and calendars, reminders and contacts are read through macOS (contacts are kept in memory only). Mestre only goes online to check for updates and to fetch exchange rates (from jsDelivr by default, `calculator.ratesURL`) after you type a currency conversion. Turn them off with `updates.check` and `calculator.currency`.
+- **Private.** Your data stays on your Mac: no account, no analytics, no tracking. Translation and text recognition run on-device, and calendars, reminders and contacts are read through macOS (contacts are kept in memory only). Mestre only goes online to check for updates and to fetch exchange rates (from the European Central Bank by default, `calculator.ratesURL`) after you type a currency conversion. Turn them off with `updates.check` and `calculator.currency`.
 
 **Mestre is in beta.** It's ready for daily use, but expect rough edges. Config keys can still change between `0.x` versions, and the release notes say when they do.
 

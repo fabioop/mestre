@@ -13,8 +13,8 @@ import Testing
     }
 
     @Test func readsJSONRateFiles() throws {
-        let jsdelivr = try #require(CurrencyRates.parse(#"{"date":"2026-11-07","eur":{"usd":1.16,"myr":4.9,"1inch":14,"eur":1}}"#))
-        #expect(jsdelivr.date == "2026-11-07" && jsdelivr.rates["MYR"] == 4.9 && jsdelivr.rates["EUR"] == 1 && jsdelivr.rates["1INCH"] == nil)
+        let lowercase = try #require(CurrencyRates.parse(#"{"date":"2026-11-07","eur":{"usd":1.16,"myr":4.9,"1inch":14,"eur":1}}"#))
+        #expect(lowercase.date == "2026-11-07" && lowercase.rates["MYR"] == 4.9 && lowercase.rates["EUR"] == 1 && lowercase.rates["1INCH"] == nil)
         let erAPI = try #require(CurrencyRates.parse(#"{"base_code":"USD","time_last_update_utc":"Sat, 07 Nov 2026","rates":{"EUR":0.86}}"#))
         #expect(erAPI.rates["USD"] == 1 && erAPI.rates["EUR"] == 0.86)
         #expect(CurrencyRates.parse(#"{"error":"nope"}"#) == nil)

@@ -103,9 +103,15 @@ final class RemindersProvider: ResultProvider {
         return HomeFeature(id: "reminders", title: "Reminders", subtitle: "Add one in plain words, like call mum fri 5pm", symbol: "checklist", keyword: settings.keyword)
     }
 
+    /// Reads the permission off the main thread: the first EventKit status check in a process is
+    /// tens of ms, too slow for the first keystroke under the keyword to pay.
     func panelWillShow() {
-        gate.reset()
         lastDraft = nil
+        guard settings.enabled else { return }
+        Task {
+            let status = await Task.detached(priority: .userInitiated) { SharedEventStore.status(for: .reminder) }.value
+            if gate.update(status) { onChange?() }
+        }
     }
 
     private func isCreating(_ query: Query) -> Bool { createMode.matches(query) && !query.remainder.isEmpty }
