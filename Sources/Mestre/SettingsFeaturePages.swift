@@ -65,7 +65,9 @@ struct FeaturesPage: View {
         case .dictionary: DictionaryOptions(settings: settings)
         case .translator: TranslatorOptions(settings: settings)
         case .calendar: CalendarOptions(settings: settings, provider: viewModel.calendar)
+        case .reminders: ReminderOptions(settings: settings, provider: viewModel.reminders)
         case .bookmarks: BookmarkOptions(settings: settings)
+        case .contacts: ContactOptions(settings: settings)
         case .colours: ColourOptions(settings: settings)
         case .commands: CommandOptions(settings: settings)
         case .systemSettings: PaneOptions(settings: settings, panes: viewModel.settingsPanes.panes)
@@ -74,9 +76,14 @@ struct FeaturesPage: View {
         case .bluetooth:
             KeywordField(label: "Keyword", value: $settings.config.bluetooth.keyword, placeholder: "pair").setting("bluetooth.keyword")
             Toggle("Close the panel once connected", isOn: $settings.config.bluetooth.closeOnConnect).setting("bluetooth.close")
+        case .media: MediaOptions(settings: settings)
         case .appleShortcuts: EmptyView()
+        case .scripts:
+            KeywordField(label: "Keyword", value: $settings.config.scripts.keyword, placeholder: "script").setting("scripts.keyword")
+            Toggle("Scripts in ordinary searches", isOn: $settings.config.scripts.searchEverywhere).setting("scripts.everywhere")
         case .web: WebOptions(settings: settings)
         case .windows: WindowOptions(settings: settings)
+        case .menus: MenuSearchOptions(settings: settings)
         }
     }
 }
@@ -101,6 +108,9 @@ private struct ClipboardOptions: View {
                      options: [(1, "1 day"), (7, "1 week"), (30, "1 month"), (90, "3 months"), (365, "1 year"), (0, "Never")]) { "\($0) days" }
             .setting("clipboard.age")
         AppListField(label: "Never record from", values: $settings.config.clipboard.excludeApps, apps: apps.apps).setting("clipboard.exclude")
+        Toggle("Search the text in copied images", isOn: $settings.config.ocr.clipboardImages)
+            .disabled(!settings.config.ocr.enabled)  // `ocr.enabled: false` in the file switches it off
+            .setting("clipboard.ocr")
         Button("Clear History") { viewModel.clipboard.monitor.removeAll() }
         Caption("Stored in plain text on this Mac, readable only by you. Concealed content, like passwords, is never kept.")
     }
@@ -191,9 +201,11 @@ private struct CalculatorOptions: View {
         IntStepper(label: "Significant digits", value: $settings.config.calculator.precision, range: 1...17).setting("calculator.precision")
         Toggle("Unit conversions, like 10 km to mi", isOn: $settings.config.calculator.units).setting("calculator.units")
         Toggle("Currency conversions, like 100 usd to eur", isOn: $settings.config.calculator.currency).setting("calculator.currency")
+        Toggle("Time zones, like 3pm lisbon in sf", isOn: $settings.config.calculator.timeZones).setting("calculator.timeZones")
+        Toggle("Date maths, like today + 90d", isOn: $settings.config.calculator.dates).setting("calculator.dates")
         if settings.config.calculator.currency {
             KeywordField(label: "Default currency", value: $settings.config.calculator.defaultCurrency, placeholder: Locale.current.currency?.identifier ?? "EUR").setting("calculator.defaultCurrency")
-            Caption("Reference rates from the European Central Bank, downloaded once a day and only after you type a currency conversion.")
+            Caption("Rates come from \(URL(string: settings.config.calculator.ratesURL)?.host ?? "calculator.ratesURL"), downloaded once a day and only after you type a currency conversion.")
         }
     }
 }
@@ -332,6 +344,28 @@ private struct KeepAwakeOptions: View {
     }
 }
 
+private struct MediaOptions: View {
+    @ObservedObject var settings: ConfigStore
+
+    var body: some View {
+        KeywordField(label: "Keyword", value: $settings.config.media.keyword, placeholder: "media").setting("media.keyword")
+        Toggle("Show what Music or Spotify is playing", isOn: $settings.config.media.nowPlaying).setting("media.nowPlaying")
+        Toggle("Controls in ordinary searches", isOn: $settings.config.media.searchEverywhere).setting("media.everywhere")
+        Toggle("Close the panel after a control", isOn: $settings.config.media.closeOnControl).setting("media.close")
+        Picker("Send controls as", selection: $settings.config.media.method) {
+            Text("Media keys").tag(Config.Media.Method.keys)
+            Text("Apple Events to the player").tag(Config.Media.Method.player)
+        }
+        .setting("media.method")
+        if settings.config.media.method == .keys {
+            AccessibilityAccessRow().setting("media.permission")
+        }
+        Caption(settings.config.media.method == .keys
+                ? "Media keys reach whatever is playing, a browser tab too, and need Accessibility access."
+                : "Only Music and Spotify, when running; macOS asks once to let Mestre control each.")
+    }
+}
+
 private struct WebOptions: View {
     @ObservedObject var settings: ConfigStore
     @State private var isCustom = false
@@ -363,7 +397,6 @@ private struct WebOptions: View {
 
 private struct WindowOptions: View {
     @ObservedObject var settings: ConfigStore
-    @State private var hasPermission = WindowManager.hasPermission
     private static let layouts = WindowLayout.allCases.map { Choice(id: $0.rawValue, title: $0.title) }
 
     var body: some View {
@@ -372,18 +405,7 @@ private struct WindowOptions: View {
             ValueSlider(label: "Gap between windows", points: $settings.config.windows.gap, range: 0...40).setting("windows.gap")
             ShownChecklist(label: "Layouts shown", choices: Self.layouts, hidden: $settings.config.windows.hidden, matchesTitle: true).setting("windows.shown")
         }
-        LabeledContent("Accessibility access") {
-            if hasPermission {
-                Text("Granted").foregroundStyle(.secondary)
-            } else {
-                Button("Grant…") {
-                    WindowManager.ensurePermission()
-                    WindowManager.openAccessibilitySettings()
-                }
-            }
-        }
-        .setting("windows.permission")
-        .onAppear { hasPermission = WindowManager.hasPermission }
+        AccessibilityAccessRow().setting("windows.permission")
         Caption("Needed to move windows and to paste. Layout shortcuts are under Shortcuts.")
     }
 }

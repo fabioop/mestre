@@ -135,20 +135,34 @@ final class AppProvider: ResultProvider {
 }
 
 extension String {
-    /// Copies the text; `toast` confirms it in the footer for an action that keeps the panel open.
+    /// Copies the text; `toast` confirms it in the footer for an action that keeps the panel open,
+    /// and `outsidePanel` says where it goes when the footer can't show it.
     @MainActor
-    func copyToPasteboard(toast: String? = nil) {
+    func copyToPasteboard(toast: String? = nil, outsidePanel: Feedback.OutsidePanel = .none) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(self, forType: .string)
-        if let toast { Feedback.toast(toast) }
+        if let toast { Feedback.toast(toast, outsidePanel: outsidePanel) }
     }
 }
 
-/// Short confirmations for actions that keep the panel open ("Path copied"), shown in the
-/// footer for `panel.toastSeconds`. A global rather than a provider closure because the
-/// shared file actions (`FileActions`) have no provider handle; the view model installs `show`.
+/// Short confirmations ("Path copied"), shown in the footer for `panel.toastSeconds`. A global
+/// rather than a provider closure because the shared file actions (`FileActions`) have no
+/// provider handle; the view model installs itself as `panel`. The one place that decides where
+/// a message goes: the footer when the panel is open with a footer and `panel.toastSeconds` > 0,
+/// else `outsidePanel`.
 @MainActor
 enum Feedback {
-    static var show: ((String) -> Void)?
-    static func toast(_ text: String) { show?(text) }
+    enum OutsidePanel {
+        /// Dropped: the message only makes sense beside the results.
+        case none
+        /// The bottom-of-screen `ToastHUD`, for this long.
+        case hud(seconds: Double)
+    }
+
+    static weak var panel: SearchViewModel?
+
+    static func toast(_ text: String, outsidePanel: OutsidePanel = .none) {
+        if let panel, panel.canShowToast { panel.showToast(text); return }
+        if case .hud(let seconds) = outsidePanel { ToastHUD.show(text, seconds: seconds) }
+    }
 }

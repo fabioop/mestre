@@ -6,7 +6,7 @@ public enum UnitConversion {
     public enum Category: Sendable { case length, mass, temperature, volume, area, speed, data, time }
 
     /// A measure, stored as how many base units one of it is. Temperature also needs an offset.
-    public struct Measure: Equatable, Sendable {
+    public struct Measure: Hashable, Sendable {
         public let symbol: String
         public let category: Category
         let factor: Double
@@ -17,7 +17,7 @@ public enum UnitConversion {
         }
     }
 
-    public enum Unit: Equatable, Sendable {
+    public enum Unit: Hashable, Sendable {
         case measure(Measure)
         case currency(String)
 
@@ -26,6 +26,11 @@ public enum UnitConversion {
             case .measure(let measure): return measure.symbol
             case .currency(let code): return code
             }
+        }
+
+        public var isCurrency: Bool {
+            if case .currency = self { return true }
+            return false
         }
     }
 
@@ -36,30 +41,32 @@ public enum UnitConversion {
         /// The target came from the default currency, not from what was typed.
         public var isImplied = false
 
-        public var isCurrency: Bool {
-            if case .currency = from { return true }
-            return false
-        }
+        public var isCurrency: Bool { from.isCurrency }
     }
 
     /// The word between the two units.
     static let connectors: Set<String> = ["to", "in", "as", "em", "para", "=", "->", "=>", "→"]
 
+    /// Splits off a typed target: "10 km to mi" → ("10 km", "mi"), "15 myr to" → ("15 myr", ""), and
+    /// no connector → (text, nil).
+    private static func splitTarget(_ text: String) -> (left: String, target: String?) {
+        let tokens = text.split(separator: " ")
+        guard tokens.count >= 3 else { return (text, nil) }
+        // A word after a connector first: in `5 ft to in` the last "in" is inches.
+        if connectors.contains(String(tokens[tokens.count - 2])) { return (tokens.dropLast(2).joined(separator: " "), String(tokens[tokens.count - 1])) }
+        if connectors.contains(String(tokens[tokens.count - 1])) { return (tokens.dropLast().joined(separator: " "), "") }
+        return (text, nil)
+    }
+
     /// Parses `lowercased` (already lowercased and trimmed). With no target, a currency converts to
     /// `defaultCurrency`; a measure has no obvious target, so "10 km" isn't a conversion.
     public static func parse(lowercased text: String, defaultCurrency: String? = nil) -> Request? {
         guard Calculator.mayBeExpression(text) else { return nil }
-        let tokens = text.split(separator: " ")
-        var left = text
-        var target: Unit?
-        var targetName = ""
+        let (left, typedTarget) = splitTarget(text)
+        let targetName = typedTarget ?? ""
+        var target = typedTarget.flatMap(unit(named:))
+        guard typedTarget == nil || target != nil else { return nil }
         var implied = false
-        if tokens.count >= 3, connectors.contains(String(tokens[tokens.count - 2])) {
-            targetName = String(tokens[tokens.count - 1])
-            guard let unit = unit(named: targetName) else { return nil }
-            target = unit
-            left = tokens.dropLast(2).joined(separator: " ")
-        }
         guard let (amountText, sourceName) = splitAmount(left), let source = unit(named: sourceName),
               let amount = Calculator.amount(lowercased: amountText) else { return nil }
         if target == nil, case .currency(let code) = source, let fallback = defaultCurrency?.uppercased(), fallback != code {
@@ -72,6 +79,101 @@ public enum UnitConversion {
         guard compatible(from, to) else { return nil }
         return Request(amount: amount, from: from, to: to, isImplied: implied)
     }
+
+    /// Conversions for a query still being typed, up to `limit`. With no target, `15 ringgit`, `10 km` and
+    /// `15 myr to` go to each of `currencies` or of the `units` in the same category; a name being typed
+    /// matches by its start (`15 ring` is MYR, `10 kilom` km, `15 krona` both SEK and ISK), as does a target
+    /// (`15 myr to e`, `10 km to m`). Both lists are in order of preference: codes, and unit names.
+    public static func suggestions(lowercased text: String, currencies: [String], units: [String], limit: Int) -> [Request] {
+        guard limit > 0, Calculator.mayBeExpression(text) else { return [] }
+        let (left, targetName) = splitTarget(text)
+        guard let (amountText, sourceName) = splitAmount(left), let amount = Calculator.amount(lowercased: amountText) else { return [] }
+        let preference = Preference(currencies: currencies, units: units)
+        // `4k` and `3d` are app names, `15r` too close to one: written together, only a full name of two
+        // or more letters counts. `15 r…` is clearly an amount.
+        let apart = left.hasSuffix(" " + sourceName)
+        guard apart || sourceName.count >= 2 else { return [] }
+        let sources = self.units(named: sourceName, minPrefix: apart ? 2 : nil, preference: preference)
+        let named = targetName.flatMap { $0.isEmpty ? nil : self.units(named: $0, minPrefix: 1, preference: preference) }
+        let pairs = sources.flatMap { source -> [(Unit, Unit)] in
+            let wanted = named ?? preference.defaults(for: source)
+            let compatibleTargets = wanted.compactMap { target -> (Unit, Unit)? in
+                // "Pounds" is money until the other side says it's a weight.
+                let pair = (poundsAsWeight(source, named: sourceName, against: target), target)
+                return pair.0 != pair.1 && compatible(pair.0, pair.1) ? pair : nil
+            }
+            // One source fans out to every target; several (`15 krona`, `10 k`) each take their first.
+            return sources.count == 1 ? compatibleTargets : Array(compatibleTargets.prefix(1))
+        }
+        return pairs.prefix(limit).map { Request(amount: amount, from: $0.0, to: $0.1, isImplied: targetName?.isEmpty ?? true) }
+    }
+
+    /// What suggestions convert to, and the order names being typed are offered in.
+    struct Preference {
+        let currencies: [String]
+        let measures: [Measure]
+
+        init(currencies: [String], units: [String]) {
+            var codes = Set<String>(), symbols = Set<String>()
+            self.currencies = currencies.map { $0.uppercased() }.filter { codes.insert($0).inserted }
+            self.measures = units.compactMap { UnitConversion.measures[$0.lowercased()] }.filter { symbols.insert($0.symbol).inserted }
+        }
+
+        func defaults(for source: Unit) -> [Unit] {
+            switch source {
+            case .currency: return currencies.map(Unit.currency)
+            case .measure(let measure):
+                // Closest in size first (by power of ten), so `2 in` goes to cm before km; ties keep the configured order.
+                let distance = { (other: Measure) in abs(log10(other.factor / measure.factor)).rounded(.down) }
+                return measures.enumerated().filter { $0.element.category == measure.category }
+                    .sorted { (distance($0.element), $0.offset) < (distance($1.element), $1.offset) }
+                    .map { Unit.measure($0.element) }
+            }
+        }
+
+        func rank(_ unit: Unit) -> Int {
+            switch unit {
+            case .currency(let code): return currencies.firstIndex(of: code) ?? .max
+            case .measure(let measure): return measures.firstIndex(of: measure).map { $0 + currencies.count } ?? .max
+            }
+        }
+    }
+
+    /// The units `name` means: itself when it's a unit, code or alias, every currency whose name has that word
+    /// ("krona" is SEK and ISK), or else, with `minPrefix`, every unit or currency whose name or a word of it
+    /// starts with it. Sorted by `preference`, then shortest symbol first.
+    private static func units(named name: String, minPrefix: Int?, preference: Preference) -> [Unit] {
+        if let unit = unit(named: name) { return [unit] }
+        let key = TimeZoneNames.fold(name)
+        var found = Set(currencyWords.filter { $0.word == key }.map { Unit.currency($0.code) })
+        if found.isEmpty, let minPrefix, key.count >= minPrefix {
+            found = Set(currencyWords.filter { $0.word.hasPrefix(key) }.map { Unit.currency($0.code) })
+            found.formUnion(measures.filter { $0.key.hasPrefix(name) }.map { Unit.measure($0.value) })
+        }
+        return found.sorted { (preference.rank($0), $0.symbol.count, $0.symbol) < (preference.rank($1), $1.symbol.count, $1.symbol) }
+    }
+
+    /// Reads the currency names off the main thread, before the first `15 ring` needs them.
+    public static func warmUp() {
+        DispatchQueue.global(qos: .utility).async { _ = currencyWords.count }
+    }
+
+    /// Each word of each known currency's code, aliases and names in English and the Mac's language,
+    /// lowercased without accents: "myr", "malaysian", "ringgit", "malaio".
+    static let currencyWords: [(word: String, code: String)] = {
+        var words: [(String, String)] = currencyAliases.map { ($0.key, $0.value) }
+        let locales = [Locale(identifier: "en"), Locale.current]
+        for code in CurrencyRates.knownCodes {
+            words.append((code.lowercased(), code))
+            for locale in locales {
+                let name = TimeZoneNames.fold((locale.localizedString(forCurrencyCode: code) ?? "").lowercased())
+                for word in name.split(whereSeparator: { $0 == " " || $0 == "-" }) where word.count >= 3 {
+                    words.append((String(word), code))
+                }
+            }
+        }
+        return words
+    }()
 
     /// The measured result; nil for a currency, which needs rates (see `CurrencyRates`).
     public static func measureResult(_ request: Request) -> Double? {
@@ -211,16 +313,18 @@ public struct CurrencyRates: Codable, Equatable, Sendable {
     /// Units of each currency per euro. EUR itself is 1.
     public let rates: [String: Double]
 
-    /// The currencies the query parser recognises by code, before any rates are loaded.
-    public static let knownCodes: Set<String> = [
-        "AUD", "BRL", "CAD", "CHF", "CNY", "CZK", "DKK", "EUR", "GBP", "HKD", "HUF", "IDR", "ILS", "INR", "ISK",
-        "JPY", "KRW", "MXN", "MYR", "NOK", "NZD", "PHP", "PLN", "RON", "SEK", "SGD", "THB", "TRY", "USD", "ZAR",
-    ]
+    /// Where these rates came from (`calculator.ratesURL`); nil in files written before it was kept.
+    public var source: String?
 
-    public init(date: String, fetchedAt: Date, rates: [String: Double]) {
+    /// The currencies the query parser recognises by code, before any rates are loaded: every ISO 4217
+    /// currency in use, plus bitcoin and ether.
+    public static let knownCodes: Set<String> = Set(Locale.commonISOCurrencyCodes).union(["BTC", "ETH"])
+
+    public init(date: String, fetchedAt: Date, rates: [String: Double], source: String? = nil) {
         self.date = date
         self.fetchedAt = fetchedAt
         self.rates = rates
+        self.source = source
     }
 
     public func convert(_ amount: Double, from: String, to: String) -> Double? {
@@ -228,12 +332,36 @@ public struct CurrencyRates: Codable, Equatable, Sendable {
         return amount / source * target
     }
 
-    public func isStale(maxAgeHours: Double, now: Date = Date()) -> Bool {
-        now.timeIntervalSince(fetchedAt) >= maxAgeHours * 3600
+    /// Old, or downloaded from another `ratesURL` than `source` (still shown until new rates arrive).
+    public func isStale(maxAgeHours: Double, source: String? = nil, now: Date = Date()) -> Bool {
+        now.timeIntervalSince(fetchedAt) >= maxAgeHours * 3600 || (source != nil && self.source != source)
     }
 
     private static let datePattern = try? NSRegularExpression(pattern: #"time=['"]([0-9-]+)['"]"#)
     private static let ratePattern = try? NSRegularExpression(pattern: #"currency=['"]([A-Z]{3})['"]\s+rate=['"]([0-9.]+)['"]"#)
+
+    /// Reads a downloaded rates file: JSON or the ECB's XML.
+    public static func parse(_ text: String, fetchedAt: Date = Date()) -> CurrencyRates? {
+        text.first == "{" ? parse(json: Data(text.utf8), fetchedAt: fetchedAt) : parse(ecbXML: text, fetchedAt: fetchedAt)
+    }
+
+    /// Reads `{"date": "2026-11-07", "eur": {"usd": 1.16, …}}` or
+    /// `{"base_code": "EUR", "rates": {"USD": 1.16, …}}`, for a `ratesURL` the user chose. Only known codes are kept.
+    public static func parse(json data: Data, fetchedAt: Date = Date()) -> CurrencyRates? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let base = (object["base_code"] as? String) ?? object.keys.sorted().first { object[$0] is [String: Any] && knownCodes.contains($0.uppercased()) }
+        guard let base, let table = (object["rates"] ?? object[base]) as? [String: Any] else { return nil }
+        var rates: [String: Double] = [base.uppercased(): 1]
+        for (code, value) in table {
+            let code = code.uppercased()
+            if knownCodes.contains(code), let rate = (value as? NSNumber)?.doubleValue, rate.isFinite, rate > 0 { rates[code] = rate }
+        }
+        // A full RFC 1123 timestamp is too long for a row: its Unix twin becomes the same "2026-11-07" form.
+        let date = (object["date"] as? String)
+            ?? (object["time_last_update_unix"] as? NSNumber).map { ISO8601DateFormatter.string(from: Date(timeIntervalSince1970: $0.doubleValue), timeZone: .gmt, formatOptions: .withFullDate) }
+            ?? (object["time_last_update_utc"] as? String) ?? ""
+        return rates.count > 1 ? CurrencyRates(date: date, fetchedAt: fetchedAt, rates: rates) : nil
+    }
 
     /// Reads the ECB's daily file: `<Cube time='…'>` around `<Cube currency='USD' rate='1.12'/>`.
     public static func parse(ecbXML text: String, fetchedAt: Date = Date()) -> CurrencyRates? {

@@ -13,7 +13,7 @@ final class Paster {
     init(clipboard: ClipboardMonitor) { self.clipboard = clipboard }
 
     /// Posting keyboard events needs the Accessibility permission.
-    nonisolated static var canPaste: Bool { AXIsProcessTrusted() }
+    nonisolated static var canPaste: Bool { Accessibility.isTrusted }
 
     /// Records any pending copy first, then puts `text` on the pasteboard without
     /// recording it, closes the panel (`dismiss`) and pastes. `caretMoves` Left presses

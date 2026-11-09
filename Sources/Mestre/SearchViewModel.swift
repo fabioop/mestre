@@ -19,18 +19,12 @@ final class SearchViewModel: ObservableObject {
     func willPaste() {
         pastedText = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    /// A feature or quicklink turned into a chip before the field: its completion is
-    /// prepended to what is typed, so providers see the same keyword query as before.
-    struct Scope: Equatable {
-        let title: String
-        let symbol: String?
-        let completion: String
-    }
     /// What the owning provider understood from the query ("for 45 min"), shown under the field.
     @Published private(set) var chips: [String] = []
-    @Published private(set) var scope: Scope?
-    /// What the providers search: the scope's completion plus the typed text.
-    var effectiveQuery: String { (scope?.completion ?? "") + query }
+    /// A row's completion turned into a chip before the field (`panel.completion: scope`).
+    @Published private(set) var scope: Completion?
+    /// What the providers search: the scope's text plus the typed text.
+    var effectiveQuery: String { (scope?.text ?? "") + query }
     /// How the selected row's actions are shown while `actionIndex` is set: the ⌘K list, or
     /// chips under the row (⇥). Cleared with `actionIndex`.
     enum ActionsMode { case menu, chips }
@@ -169,8 +163,11 @@ final class SearchViewModel: ObservableObject {
     /// Bumped per toast so a stale clear-timer leaves a newer toast alone.
     private var toastGeneration = 0
 
+    /// Whether a footer toast would show now; `Feedback` sends the message elsewhere when not.
+    var canShowToast: Bool { isPanelVisible && layout.showFooter && layout.toastSeconds > 0 }
+
     func showToast(_ text: String) {
-        guard isPanelVisible, layout.showFooter, layout.toastSeconds > 0 else { return }
+        guard canShowToast else { return }
         toast = text
         toastGeneration &+= 1
         let generation = toastGeneration
@@ -185,7 +182,9 @@ final class SearchViewModel: ObservableObject {
     let settingsPanes = SettingsPaneProvider()
     let processes = ProcessProvider()
     let keepAwake = KeepAwakeProvider()
+    let menus = MenuItemProvider()
     let bluetooth = BluetoothProvider()
+    lazy var media = MediaProvider(runningApps: apps.running)
     let homeScreen = HomeProvider()
     let shortcuts = ShortcutsProvider()
     let quicklinks = QuicklinkProvider()
@@ -199,9 +198,12 @@ final class SearchViewModel: ObservableObject {
     let paths = PathProvider()
     let dictionary = DictionaryProvider()
     let calendar = CalendarProvider()
+    let reminders = RemindersProvider()
     let translator = TranslatorProvider()
     let bookmarks = BookmarkProvider()
+    let contacts = ContactsProvider()
     let colors = ColorProvider()
+    let scripts = ScriptsProvider()
     private(set) var providers: [any ResultProvider] = []
     private var cancellables = Set<AnyCancellable>()
 
@@ -209,8 +211,8 @@ final class SearchViewModel: ObservableObject {
     var onDismiss: (() -> Void)?
 
     init() {
-        // Quicklinks before calendar and translator: a quicklink the user gave "tr" or "cal" keeps it.
-        providers = [calculator, colors, processes, keepAwake, bluetooth, clipboard, emoji, files, paths, dictionary, quicklinks, calendar, translator, bookmarks, snippets, apps, openWindows, commands, windows, settingsPanes, shortcuts, web, homeScreen]
+        // Quicklinks before menus, calendar, reminders and translator: a quicklink the user gave "menu", "tr", "cal" or "todo" keeps it.
+        providers = [calculator, colors, processes, keepAwake, bluetooth, media, clipboard, emoji, files, paths, dictionary, quicklinks, menus, calendar, reminders, translator, bookmarks, contacts, scripts, snippets, apps, openWindows, commands, windows, settingsPanes, shortcuts, web, homeScreen]
         snippets.paster = clipboard.paster
         emoji.paster = clipboard.paster
         for provider in providers {
@@ -219,13 +221,20 @@ final class SearchViewModel: ObservableObject {
                 guard let self, self.isPanelVisible else { return }
                 self.search(keepSelection: true)
             }
-            provider.replaceQuery = { [weak self] text in
-                self?.complete(with: text)
-                self?.requestFocus()
+            provider.replaceQuery = { [weak self, weak provider] text in
+                guard let self else { return }
+                // An action such as Search… or Enter Arguments… completes its own row: that row's chip.
+                if let provider, let selected = self.selected, selected.provider === provider,
+                   let completion = provider.completion(for: selected.item), completion.text == text {
+                    self.complete(with: completion)
+                } else {
+                    self.complete(with: text)
+                }
+                self.requestFocus()
             }
         }
         apps.index.$isIndexing.assign(to: &$isIndexing)
-        Feedback.show = { [weak self] text in self?.showToast(text) }
+        Feedback.panel = self
     }
 
     func search(keepSelection: Bool = false) {
@@ -420,28 +429,26 @@ final class SearchViewModel: ObservableObject {
         actionIndex = nil
     }
 
-    /// A completion from a feature or quicklink row: a scope chip (`panel.completion: scope`),
-    /// or the text in the field.
-    func complete(with completion: String) {
-        // Only a feature or quicklink becomes a chip; a folder path is text the user goes on editing.
-        guard layout.completion == .scope, !completion.isEmpty, let scope = scope(for: completion) else {
-            query = completion
+    /// A row's completion: a scope chip (`panel.completion: scope`), or its text in the field.
+    func complete(with completion: Completion) {
+        guard layout.completion == .scope else {
+            query = completion.text
             return
         }
-        self.scope = scope
+        scope = completion
         // One search: setting the query runs it, unless the field is already empty.
         if query.isEmpty { search() } else { query = "" }
     }
 
-    /// The chip for a completion: the feature or quicklink it belongs to; nil for any other text.
-    private func scope(for completion: String) -> Scope? {
-        if let feature = quickKeyFeatures.first(where: { $0.completion == completion }) {
-            return Scope(title: feature.title, symbol: feature.symbol, completion: completion)
-        }
-        if let link = quicklinks.links.first(where: { $0.completionPrefix == completion }) {
-            return Scope(title: link.name, symbol: "link", completion: completion)
-        }
-        return nil
+    /// Text for the field (a folder path, a feature's keyword from a hotkey): a chip only when it
+    /// is a feature's keyword; anything else is text the user goes on editing.
+    func complete(with text: String) {
+        if let completion = scope(for: text) { complete(with: completion) } else { query = text }
+    }
+
+    /// The feature whose keyword this is; nil for any other text.
+    private func scope(for text: String) -> Completion? {
+        quickKeyFeatures.first { $0.completion == text }.flatMap { Completion($0) }
     }
 
     /// The feature with this id on the home screen; nil when unknown or disabled.
@@ -451,7 +458,7 @@ final class SearchViewModel: ObservableObject {
 
     /// True when the panel's query is this feature's: its chip, or its keyword in the field.
     func isShowing(_ feature: HomeFeature) -> Bool {
-        scope?.completion == feature.completion || (scope == nil && query == feature.completion)
+        scope?.text == feature.completion || (scope == nil && query == feature.completion)
     }
 
     /// ⌫ on an empty field: back out of the scope. False when the key is the field's to handle.
@@ -462,13 +469,12 @@ final class SearchViewModel: ObservableObject {
         return true
     }
 
-    /// ⇥: a feature or quicklink row becomes the scope; any other row unfolds its actions.
+    /// ⇥: a row its provider can complete (a feature, a search quicklink, a script that takes
+    /// arguments) becomes the scope; any other row unfolds its actions.
     func completeOrUnfold() {
         guard let selected else { return }
-        if let feature = (selected.item as? FeatureItem)?.feature, !feature.completion.isEmpty {
-            complete(with: feature.completion)
-        } else if let link = selected.item as? QuicklinkItem, link.needsQuery {
-            complete(with: link.link.completionPrefix)
+        if let completion = selected.provider.completion(for: selected.item) {
+            complete(with: completion)
         } else if selectedActions.count > 1 {
             if actionsMode == .chips { closeActions() } else { openActions(.chips) }
         }

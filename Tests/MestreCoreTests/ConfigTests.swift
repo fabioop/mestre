@@ -173,16 +173,21 @@ import Testing
 }
 
 @Suite struct DebugConfigTests {
-    @Test func aFileWithTheRemovedScriptsSectionStillLoads() throws {
-        let json = #"{"hotKey": "cmd+space", "scripts": {"enabled": true, "items": [{"name": "A", "keyword": "a", "command": "x"}]}}"#
+    @Test func aFileWithTheOldScriptFiltersStillLoads() throws {
+        // `scripts` once held keyword-triggered script filters; their `items` are ignored now.
+        let json = #"{"hotKey": "cmd+space", "scripts": {"enabled": false, "items": [{"name": "A", "keyword": "a", "command": "x"}]}}"#
         let config = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
         #expect(config.hotKey.configString == "cmd+space")
-        // A save carries the section over instead of deleting what the user wrote.
+        #expect(config.scripts.enabled == false && config.scripts.keyword == "script")
+    }
+
+    @Test func aSaveCarriesOverSectionsThisBuildDoesNotKnow() throws {
+        let json = #"{"hotKey": "cmd+space", "later": {"enabled": true}}"#
         let file = try #require(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
         let notes = ConfigDocs.notes(in: file)
-        #expect(notes.keys.sorted() == ["scripts"])
+        #expect(notes.keys.sorted() == ["later"])
         let saved = try #require(try JSONSerialization.jsonObject(with: Data(ConfigDocs.file(changes: [:], notes: notes).utf8)) as? [String: Any])
-        #expect((saved["scripts"] as? [String: Any])?["enabled"] as? Bool == true)
+        #expect((saved["later"] as? [String: Any])?["enabled"] as? Bool == true)
     }
 
     @Test func updatesDefaultToStableDailyChecks() throws {

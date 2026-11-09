@@ -134,18 +134,7 @@ public enum CalendarAgenda {
         return formatter("EEEdMMM", calendar: calendar, locale: locale).string(from: date)
     }
 
-    /// Building a formatter costs more than using one, and every row asks on every keystroke.
-    private static let formatters = NSCache<NSString, DateFormatter>()
-
-    private static func formatter(_ template: String, calendar: Calendar, locale: Locale) -> DateFormatter {
-        let key = "\(template)|\(locale.identifier)|\(calendar.identifier)|\(calendar.timeZone.identifier)" as NSString
-        if let cached = formatters.object(forKey: key) { return cached }
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.locale = locale
-        formatter.setLocalizedDateFormatFromTemplate(template)
-        formatters.setObject(formatter, forKey: key)
-        return formatter
+    static func formatter(_ template: String, calendar: Calendar, locale: Locale) -> DateFormatter {
+        DateFormatters.template(template, locale: locale, timeZone: calendar.timeZone, calendar: calendar)
     }
 }

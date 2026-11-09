@@ -14,14 +14,36 @@ public enum FuzzyMatcher {
     /// a query is trimmed, so it never matches the leading space.
     public static func unanchored(_ candidate: String) -> String { " " + candidate }
 
+    /// A candidate split into characters with its word starts found, for lists matched on every
+    /// keystroke: finding word starts is most of the cost of a match.
+    public struct Prepared: Sendable {
+        let lowered: [Character]
+        let wordStarts: [Bool]
+
+        public init(_ candidate: String) {
+            self.init(candidate, lowered: Array(candidate.lowercased()))
+        }
+
+        init(_ candidate: String, lowered: [Character]) {
+            let original = Array(candidate)
+            self.lowered = lowered
+            wordStarts = (0..<original.count).map { FuzzyMatcher.isWordStart(at: $0, in: original) }
+        }
+    }
+
     public static func match(_ query: String, in candidate: String) -> Match? {
         let q = Array(query.lowercased())
-        guard !q.isEmpty else { return nil }
-        let original = Array(candidate)
         let c = Array(candidate.lowercased())
-        guard q.count <= c.count else { return nil }
+        // Length check before preparing: candidates shorter than the query needn't pay for word starts.
+        guard !q.isEmpty, q.count <= c.count else { return nil }
+        return match(q, in: Prepared(candidate, lowered: c))
+    }
 
-        let wordStarts = (0..<original.count).map { isWordStart(at: $0, in: original) }
+    /// `query` must already be lowercased, split once per keystroke.
+    public static func match(_ q: [Character], in candidate: Prepared) -> Match? {
+        let c = candidate.lowered
+        let wordStarts = candidate.wordStarts
+        guard !q.isEmpty, q.count <= c.count else { return nil }
 
         // Two candidate alignments: one that jumps to word starts when it can
         // (good for acronyms), and the plain leftmost greedy one (good for prefixes

@@ -17,20 +17,30 @@ final class SearchPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .keyDown, !isComposingText, onKeyDown?(event) == true { return }
+        if event.type == .keyDown, handles(event) { return }
         super.sendEvent(event)
     }
 
-    /// ⌘ keys arrive here before `sendEvent`. Bound keys still win; then the text-editing
-    /// shortcuts, which the panel can't get from the Edit menu: the app has none showing, and
-    /// a non-activating panel isn't served by the main menu anyway.
+    /// ⌘ keys usually arrive here before `sendEvent`, which catches any that don't.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        if !isComposingText, onKeyDown?(event) == true { return true }
-        if let action = EditShortcut.action(for: event) {
-            if action == #selector(NSText.paste(_:)) { onPaste?() }
-            if NSApp.sendAction(action, to: nil, from: self) { return true }
-        }
-        return super.performKeyEquivalent(with: event)
+        handles(event) || super.performKeyEquivalent(with: event)
+    }
+
+    /// Bound keys first; then the text-editing shortcuts, which the panel can't get from the Edit
+    /// menu: the app has none showing, and a non-activating panel isn't served by the main menu.
+    private func handles(_ event: NSEvent) -> Bool {
+        !isComposingText && (onKeyDown?(event) == true || performEditShortcut(event))
+    }
+
+    /// ⌘A, ⌘C, ⌘V… sent straight up this panel's responder chain. `NSApp.sendAction(to: nil)`
+    /// goes through the app's key window, which while another app is active isn't always this panel.
+    /// A matched shortcut counts as handled even when nothing took it, so AppKit doesn't deliver
+    /// the same key again to `sendEvent` and run it twice.
+    private func performEditShortcut(_ event: NSEvent) -> Bool {
+        guard let action = EditShortcut.action(for: event) else { return false }
+        if action == #selector(NSText.paste(_:)) { onPaste?() }
+        _ = firstResponder?.tryToPerform(action, with: self)
+        return true
     }
 
     /// While an input method (Japanese, Chinese…) is composing, Return and Escape

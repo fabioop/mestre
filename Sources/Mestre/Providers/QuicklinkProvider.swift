@@ -75,6 +75,12 @@ final class QuicklinkProvider: ResultProvider {
         return Ranker.rank(nameItems, query: query.text, limit: limit, provider: self)
     }
 
+    /// A search link not yet given its query completes to its keyword (or name).
+    func completion(for item: any SearchItem) -> Completion? {
+        guard let item = item as? QuicklinkItem, item.needsQuery else { return nil }
+        return Completion(text: item.link.completionPrefix, title: item.link.name, symbol: "link")
+    }
+
     func perform(_ action: ItemAction, on item: any SearchItem) {
         guard let item = item as? QuicklinkItem else { return }
         switch action.id {

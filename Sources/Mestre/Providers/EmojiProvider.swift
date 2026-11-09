@@ -79,14 +79,20 @@ final class EmojiProvider: ResultProvider {
     /// The character drawn as a 32pt image, cached: the row wants an icon, not text.
     private func image(for entry: EmojiEntry) -> NSImage {
         if let cached = images.object(forKey: entry.character as NSString) { return cached }
-        let size = NSSize(width: 32, height: 32)
-        let image = NSImage(size: size, flipped: false) { rect in
-            let text = NSAttributedString(string: entry.character, attributes: [.font: NSFont.systemFont(ofSize: 22)])
-            let bounds = text.boundingRect(with: NSSize(width: 200, height: 200), options: .usesLineFragmentOrigin)
-            text.draw(at: NSPoint(x: rect.midX - bounds.width / 2, y: rect.midY - bounds.height / 2))
-            return true
-        }
+        let image = NSImage.glyph(entry.character)
         images.setObject(image, forKey: entry.character as NSString)
         return image
+    }
+}
+
+extension NSImage {
+    /// Text (an emoji, a symbol) drawn centred as a 32pt icon. Drawn lazily, when a row shows it.
+    static func glyph(_ text: String) -> NSImage {
+        NSImage(size: NSSize(width: 32, height: 32), flipped: false) { rect in
+            let string = NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 22)])
+            let bounds = string.boundingRect(with: NSSize(width: 200, height: 200), options: .usesLineFragmentOrigin)
+            string.draw(at: NSPoint(x: rect.midX - bounds.width / 2, y: rect.midY - bounds.height / 2))
+            return true
+        }
     }
 }

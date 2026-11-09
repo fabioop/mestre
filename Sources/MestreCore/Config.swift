@@ -64,8 +64,9 @@ public struct Config: Codable, Equatable, Sendable {
             }
         }
         /// System Settings panes sit under apps whatever the match: the bias is larger than
-        /// any pane's text score, so an app that matches at all comes first.
-        public static let defaultProviders = ["settings": Weight(bias: -200)]
+        /// any pane's text score, so an app that matches at all comes first. Contacts and menu
+        /// items in ordinary searches sit below an app's own score, so "safari" lists the app first.
+        public static let defaultProviders = ["settings": Weight(bias: -200), "contacts": Weight(bias: -25), "menus": Weight(bias: -15)]
         /// Provider id → weight, over `defaultProviders`; a provider not listed keeps scale 1, bias 0.
         public var providers: [String: Weight] = Ranking.defaultProviders
         /// Milliseconds a provider may take per keystroke before it is reported as slow.
@@ -330,12 +331,33 @@ public struct Config: Codable, Equatable, Sendable {
         public var defaultCurrency: String = ""
         /// Rates older than this are downloaded again when next needed.
         public var ratesMaxAgeHours: Double = 24
-        /// The European Central Bank's daily file, or anything in its format.
+        /// The European Central Bank's daily reference rates (about 30 currencies), straight from the
+        /// bank. Another source is the user's choice: its XML format, or JSON shaped like
+        /// `{"date": …, "eur": {"usd": 1.16}}` or `{"base_code": "EUR", "rates": {"USD": 1.16}}`.
         public var ratesURL: String = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+        /// `time in tokyo`, `3pm lisbon in sf`, `15:30 utc to pst`.
+        public var timeZones: Bool = true
+        /// `today + 90d`, `dec 25 - today`, `days until christmas`, `unix 1700000000`.
+        public var dates: Bool = true
+        /// Your own place names, e.g. "home": "Europe/Lisbon" (an identifier or a name Mestre knows).
+        public var cityAliases: [String: String] = [:]
+        /// Places `time` alone lists, e.g. ["home", "sf", "tokyo"]. Empty shows nothing for `time`.
+        public var worldClocks: [String] = []
+        /// How many rows a half-typed time, currency or unit query suggests (`3pm`, `3pm lis`, `time in to`,
+        /// `15 ringgit`, `15 myr to e`, `10 km`, `10 km to m`). 0 answers only finished queries.
+        public var suggestions: Int = 6
+        /// What a time with no place converts to (`3pm`, `3pm lisbon in`), after `worldClocks`.
+        public var suggestedPlaces: [String] = ["utc", "london", "new york", "san francisco", "tokyo"]
+        /// What an amount with no target converts to (`15 ringgit`, `15 myr to`), after `defaultCurrency`.
+        public var suggestedCurrencies: [String] = ["USD", "EUR", "GBP", "JPY", "CHF"]
+        /// What a measure with no target converts to (`10 km`, `30 c`), those in its category, in this order.
+        public var suggestedUnits: [String] = ["km", "mi", "m", "ft", "in", "cm", "kg", "lb", "g", "oz", "°c", "°f",
+                                               "l", "ml", "gal", "fl oz", "cup", "m²", "ft²", "ha", "ac", "km/h", "mph", "m/s",
+                                               "kn", "GB", "MB", "TB", "KB", "min", "h", "s", "d", "wk"]
 
         public init() {}
 
-        enum CodingKeys: String, CodingKey { case enabled, precision, units, currency, defaultCurrency, ratesMaxAgeHours, ratesURL }
+        enum CodingKeys: String, CodingKey { case enabled, precision, units, currency, defaultCurrency, ratesMaxAgeHours, ratesURL, timeZones, dates, cityAliases, worldClocks, suggestions, suggestedPlaces, suggestedCurrencies, suggestedUnits }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -346,25 +368,39 @@ public struct Config: Codable, Equatable, Sendable {
             defaultCurrency = try c.decodeIfPresent(String.self, forKey: .defaultCurrency) ?? defaultCurrency
             ratesMaxAgeHours = max(1, try c.decodeIfPresent(Double.self, forKey: .ratesMaxAgeHours) ?? ratesMaxAgeHours)
             ratesURL = try c.decodeIfPresent(String.self, forKey: .ratesURL) ?? ratesURL
+            timeZones = try c.decodeIfPresent(Bool.self, forKey: .timeZones) ?? timeZones
+            dates = try c.decodeIfPresent(Bool.self, forKey: .dates) ?? dates
+            cityAliases = try c.decodeIfPresent([String: String].self, forKey: .cityAliases) ?? cityAliases
+            worldClocks = try c.decodeIfPresent([String].self, forKey: .worldClocks) ?? worldClocks
+            suggestions = min(20, max(0, try c.decodeIfPresent(Int.self, forKey: .suggestions) ?? suggestions))
+            suggestedPlaces = try c.decodeIfPresent([String].self, forKey: .suggestedPlaces) ?? suggestedPlaces
+            suggestedCurrencies = try c.decodeIfPresent([String].self, forKey: .suggestedCurrencies) ?? suggestedCurrencies
+            suggestedUnits = try c.decodeIfPresent([String].self, forKey: .suggestedUnits) ?? suggestedUnits
         }
     }
 
     public struct Commands: Codable, Equatable, Sendable {
         public var enabled: Bool = true
-        /// Ask before Restart, Shut Down, Log Out and Empty Trash.
+        /// Ask before Restart, Shut Down, Log Out, Empty Trash, Eject All Disks and Quit All Apps.
         public var confirmDestructive: Bool = true
         /// Command ids to leave out of results, e.g. ["shutDown", "restart"].
         public var hidden: [String] = []
+        /// Percentage points Volume Up and Volume Down move the output volume, 1–100.
+        public var volumeStep: Int = 10
+        /// App names or bundle identifiers Quit All Apps leaves running (Finder and Mestre always stay).
+        public var quitAllExcept: [String] = []
 
         public init() {}
 
-        enum CodingKeys: String, CodingKey { case enabled, confirmDestructive, hidden }
+        enum CodingKeys: String, CodingKey { case enabled, confirmDestructive, hidden, volumeStep, quitAllExcept }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
             confirmDestructive = try c.decodeIfPresent(Bool.self, forKey: .confirmDestructive) ?? confirmDestructive
             hidden = try c.decodeIfPresent([String].self, forKey: .hidden) ?? hidden
+            volumeStep = min(100, max(1, try c.decodeIfPresent(Int.self, forKey: .volumeStep) ?? volumeStep))
+            quitAllExcept = try c.decodeIfPresent([String].self, forKey: .quitAllExcept) ?? quitAllExcept
         }
     }
 
@@ -418,20 +454,69 @@ public struct Config: Codable, Equatable, Sendable {
         }
     }
 
+    public struct Media: Codable, Equatable, Sendable {
+        /// How a control reaches the player.
+        public enum Method: String, Codable, CaseIterable, Sendable {
+            /// A system media key, like the keyboard's ⏯: works with any app; needs Accessibility.
+            case keys
+            /// An Apple Event to the running player in `players`; macOS asks for Automation once.
+            case player
+        }
+
+        public var enabled: Bool = true
+        /// First word that lists the controls and what is playing: "media".
+        public var keyword: String = "media"
+        /// Show the track and state, from the players' own change notifications; the first time the
+        /// keyword is typed while one runs, it is asked once by Apple Event (Automation prompt).
+        public var nowPlaying: Bool = true
+        /// The controls also rank in ordinary searches ("pause", "next"); off keeps them under the keyword.
+        public var searchEverywhere: Bool = true
+        /// Bundle ids of the players to listen to and control, in order of preference.
+        public var players: [String] = ["com.apple.Music", "com.spotify.client"]
+        public var method: Method = .keys
+        /// Close the panel after a control from an ordinary search; under the keyword it stays open.
+        public var closeOnControl: Bool = true
+        /// Words that find each control in an ordinary search.
+        public var playPauseWords: [String] = ["play", "pause"]
+        public var nextWords: [String] = ["next"]
+        public var previousWords: [String] = ["previous", "prev"]
+
+        public init() {}
+
+        enum CodingKeys: String, CodingKey { case enabled, keyword, nowPlaying, searchEverywhere, players, method, closeOnControl, playPauseWords, nextWords, previousWords }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
+            keyword = try c.decodeKeyword(forKey: .keyword, default: keyword)
+            nowPlaying = try c.decodeIfPresent(Bool.self, forKey: .nowPlaying) ?? nowPlaying
+            searchEverywhere = try c.decodeIfPresent(Bool.self, forKey: .searchEverywhere) ?? searchEverywhere
+            players = try c.decodeIfPresent([String].self, forKey: .players) ?? players
+            method = c.decodeChoice(forKey: .method) ?? method
+            closeOnControl = try c.decodeIfPresent(Bool.self, forKey: .closeOnControl) ?? closeOnControl
+            playPauseWords = try c.decodeWords(forKey: .playPauseWords, default: playPauseWords)
+            nextWords = try c.decodeWords(forKey: .nextWords, default: nextWords)
+            previousWords = try c.decodeWords(forKey: .previousWords, default: previousWords)
+        }
+    }
+
     public struct Processes: Codable, Equatable, Sendable {
         public var enabled: Bool = true
         /// First word that switches the panel to process mode: "kill chrome".
         public var keyword: String = "kill"
+        /// "kill :3000" / "kill port 3000" list what listens on that TCP port (read with libproc).
+        public var ports: Bool = true
 
         public init() {}
 
-        enum CodingKeys: String, CodingKey { case enabled, keyword }
+        enum CodingKeys: String, CodingKey { case enabled, keyword, ports }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
             // One word, lowercased: it is compared with the query's first word.
             keyword = try c.decodeKeyword(forKey: .keyword, default: keyword)
+            ports = try c.decodeIfPresent(Bool.self, forKey: .ports) ?? ports
         }
     }
 
@@ -730,6 +815,41 @@ public struct Config: Codable, Equatable, Sendable {
         }
     }
 
+    /// "remind call mum fri 5pm" adds a reminder; "remind " or "todo" lists the open ones.
+    public struct Reminders: Codable, Equatable, Sendable {
+        public var enabled: Bool = true
+        /// Adds a reminder; with nothing after it, lists the open ones. Needs the space.
+        public var keyword: String = "remind"
+        /// Lists open reminders, due soonest first; more words filter them.
+        public var listKeyword: String = "todo"
+        /// List new reminders go to unless `#list` says otherwise. Empty uses the system default.
+        public var defaultList: String = ""
+        /// When a reminder with a day but no time is due ("HH:mm"); empty leaves it all-day.
+        public var defaultTime: String = "09:00"
+
+        public init() {}
+
+        enum CodingKeys: String, CodingKey { case enabled, keyword, listKeyword, defaultList, defaultTime }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? enabled
+            keyword = try c.decodeKeyword(forKey: .keyword, default: keyword)
+            listKeyword = try c.decodeKeyword(forKey: .listKeyword, default: listKeyword)
+            defaultList = (try c.decodeIfPresent(String.self, forKey: .defaultList) ?? defaultList).trimmingCharacters(in: .whitespaces)
+            defaultTime = Self.validTime(try c.decodeIfPresent(String.self, forKey: .defaultTime) ?? defaultTime) ?? defaultTime
+        }
+
+        /// A `defaultTime` trimmed: empty or a time ("09:00", "9am"); nil for anything else.
+        public static func validTime(_ text: String) -> String? {
+            let trimmed = text.trimmingCharacters(in: .whitespaces)
+            return trimmed.isEmpty || ClockTime.parse(trimmed) != nil ? trimmed : nil
+        }
+
+        /// `defaultTime` as hour and minute; nil keeps date-only reminders all-day.
+        public var defaultClock: (hour: Int, minute: Int)? { ClockTime.parse(defaultTime) }
+    }
+
     /// "tr hello": on-device translation with the languages installed in macOS.
     public struct Translator: Codable, Equatable, Sendable {
         public var enabled: Bool = true
@@ -930,7 +1050,9 @@ public struct Config: Codable, Equatable, Sendable {
     public var settingsPanes = SettingsPanes()
     public var processes = Processes()
     public var keepAwake = KeepAwake()
+    public var menus = Menus()
     public var bluetooth = Bluetooth()
+    public var media = Media()
     public var shortcuts = Shortcuts()
     public var webSearch = WebSearch()
     public var windows = Windows()
@@ -942,9 +1064,13 @@ public struct Config: Codable, Equatable, Sendable {
     public var paths = Paths()
     public var dictionary = DictionaryLookup()
     public var calendar = CalendarEvents()
+    public var reminders = Reminders()
     public var translator = Translator()
+    public var ocr = OCR()
     public var bookmarks = Bookmarks()
+    public var contacts = Contacts()
     public var colors = Colors()
+    public var scripts = Scripts()
     public var startup = Startup()
     public var updates = Updates()
     public var onboarding = Onboarding()
@@ -965,7 +1091,7 @@ public struct Config: Codable, Equatable, Sendable {
     }
 
     /// Every top-level section, in the file's order; `ConfigDocs` documents each one.
-    public enum CodingKeys: String, CodingKey, CaseIterable { case hotKey, hotkeys, keys, aliases, quicklinks, quickKeys, panel, home, search, ranking, calculator, commands, settingsPanes, processes, keepAwake, bluetooth, shortcuts, webSearch, windows, clipboard, snippets, paste, emoji, files, paths, dictionary, calendar, translator, bookmarks, colors, startup, updates, onboarding, debug }
+    public enum CodingKeys: String, CodingKey, CaseIterable { case hotKey, hotkeys, keys, aliases, quicklinks, quickKeys, panel, home, search, ranking, calculator, commands, settingsPanes, processes, keepAwake, menus, bluetooth, media, shortcuts, webSearch, windows, clipboard, snippets, paste, emoji, files, paths, dictionary, calendar, reminders, translator, ocr, bookmarks, contacts, colors, scripts, startup, updates, onboarding, debug }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -989,7 +1115,9 @@ public struct Config: Codable, Equatable, Sendable {
         settingsPanes = try c.decodeIfPresent(SettingsPanes.self, forKey: .settingsPanes) ?? SettingsPanes()
         processes = try c.decodeIfPresent(Processes.self, forKey: .processes) ?? Processes()
         keepAwake = try c.decodeIfPresent(KeepAwake.self, forKey: .keepAwake) ?? KeepAwake()
+        menus = try c.decodeIfPresent(Menus.self, forKey: .menus) ?? Menus()
         bluetooth = try c.decodeIfPresent(Bluetooth.self, forKey: .bluetooth) ?? Bluetooth()
+        media = try c.decodeIfPresent(Media.self, forKey: .media) ?? Media()
         shortcuts = try c.decodeIfPresent(Shortcuts.self, forKey: .shortcuts) ?? Shortcuts()
         webSearch = try c.decodeIfPresent(WebSearch.self, forKey: .webSearch) ?? WebSearch()
         windows = try c.decodeIfPresent(Windows.self, forKey: .windows) ?? Windows()
@@ -1001,9 +1129,13 @@ public struct Config: Codable, Equatable, Sendable {
         paths = try c.decodeIfPresent(Paths.self, forKey: .paths) ?? Paths()
         dictionary = try c.decodeIfPresent(DictionaryLookup.self, forKey: .dictionary) ?? DictionaryLookup()
         calendar = try c.decodeIfPresent(CalendarEvents.self, forKey: .calendar) ?? CalendarEvents()
+        reminders = try c.decodeIfPresent(Reminders.self, forKey: .reminders) ?? Reminders()
         translator = try c.decodeIfPresent(Translator.self, forKey: .translator) ?? Translator()
+        ocr = try c.decodeIfPresent(OCR.self, forKey: .ocr) ?? OCR()
         bookmarks = try c.decodeIfPresent(Bookmarks.self, forKey: .bookmarks) ?? Bookmarks()
+        contacts = try c.decodeIfPresent(Contacts.self, forKey: .contacts) ?? Contacts()
         colors = try c.decodeIfPresent(Colors.self, forKey: .colors) ?? Colors()
+        scripts = try c.decodeIfPresent(Scripts.self, forKey: .scripts) ?? Scripts()
         startup = try c.decodeIfPresent(Startup.self, forKey: .startup) ?? Startup()
         updates = try c.decodeIfPresent(Updates.self, forKey: .updates) ?? Updates()
         onboarding = try c.decodeIfPresent(Onboarding.self, forKey: .onboarding) ?? Onboarding()
@@ -1027,7 +1159,9 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(settingsPanes, forKey: .settingsPanes)
         try c.encode(processes, forKey: .processes)
         try c.encode(keepAwake, forKey: .keepAwake)
+        try c.encode(menus, forKey: .menus)
         try c.encode(bluetooth, forKey: .bluetooth)
+        try c.encode(media, forKey: .media)
         try c.encode(shortcuts, forKey: .shortcuts)
         try c.encode(webSearch, forKey: .webSearch)
         try c.encode(windows, forKey: .windows)
@@ -1039,9 +1173,13 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(paths, forKey: .paths)
         try c.encode(dictionary, forKey: .dictionary)
         try c.encode(calendar, forKey: .calendar)
+        try c.encode(reminders, forKey: .reminders)
         try c.encode(translator, forKey: .translator)
+        try c.encode(ocr, forKey: .ocr)
         try c.encode(bookmarks, forKey: .bookmarks)
+        try c.encode(contacts, forKey: .contacts)
         try c.encode(colors, forKey: .colors)
+        try c.encode(scripts, forKey: .scripts)
         try c.encode(startup, forKey: .startup)
         try c.encode(updates, forKey: .updates)
         try c.encode(onboarding, forKey: .onboarding)
@@ -1054,6 +1192,12 @@ extension KeyedDecodingContainer {
     func decodeKeyword(forKey key: Key, default fallback: String) throws -> String {
         let word = (try decodeIfPresent(String.self, forKey: key) ?? fallback).split(whereSeparator: \.isWhitespace).first
         return word.map { String($0).lowercased() } ?? fallback
+    }
+
+    /// Search words: trimmed, lowercased, blanks dropped; the default when missing.
+    func decodeWords(forKey key: Key, default fallback: [String]) throws -> [String] {
+        (try decodeIfPresent([String].self, forKey: key) ?? fallback)
+            .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty }
     }
 
     /// A string-backed enum matched case-insensitively; nil when missing or not one of the cases.

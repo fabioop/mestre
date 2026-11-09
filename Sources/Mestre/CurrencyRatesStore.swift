@@ -29,12 +29,13 @@ final class CurrencyRatesStore {
     func refreshIfNeeded(settings: Config.Calculator) {
         guard !isBusy else { return }
         if settings.ratesURL != lastURL {
-            // Another source: whatever failed or was cached for the old one doesn't count.
-            if lastURL != nil { lastAttempt = nil; rates = nil; loadedFromDisk = true }
+            // Another source: a failure of the old one doesn't hold this one back. The old rates stay
+            // until the new ones arrive (`isStale` sees the other source), as they would after a relaunch.
+            lastAttempt = nil
             lastURL = settings.ratesURL
         }
         if let lastAttempt, Date().timeIntervalSince(lastAttempt) < retryInterval { return }
-        if loadedFromDisk, let rates, !rates.isStale(maxAgeHours: settings.ratesMaxAgeHours) { return }
+        if loadedFromDisk, let rates, !rates.isStale(maxAgeHours: settings.ratesMaxAgeHours, source: settings.ratesURL) { return }
         isBusy = true
         let file = file
         let urlText = settings.ratesURL
@@ -49,7 +50,7 @@ final class CurrencyRatesStore {
                     onChange?()
                 }
             }
-            if rates?.isStale(maxAgeHours: maxAge) ?? true {
+            if rates?.isStale(maxAgeHours: maxAge, source: urlText) ?? true {
                 lastAttempt = Date()
                 let fresh = await Task.detached(priority: .utility, operation: { await Self.download(urlText, to: file) }).value
                 if let fresh {
@@ -80,7 +81,8 @@ final class CurrencyRatesStore {
     private nonisolated static func download(_ urlText: String, to file: URL) async -> CurrencyRates? {
         guard let url = URL(string: urlText), let (data, response) = try? await session.data(from: url),
               (response as? HTTPURLResponse)?.statusCode == 200, data.count <= maxResponseBytes,
-              let parsed = CurrencyRates.parse(ecbXML: String(decoding: data, as: UTF8.self)) else { return nil }
+              var parsed = CurrencyRates.parse(String(decoding: data, as: UTF8.self)) else { return nil }
+        parsed.source = urlText
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? JSONEncoder().encode(parsed).write(to: file, options: .atomic)
         return parsed

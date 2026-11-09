@@ -4,7 +4,7 @@ import MestreCore
 
 /// Moves and resizes the focused window of the frontmost app through the
 /// Accessibility API. Needs the Accessibility permission; `apply` never prompts,
-/// the host does that once with `ensurePermission`.
+/// the host does that once with `Accessibility.prompt()`.
 @MainActor
 final class WindowManager {
     enum Failure: Error { case noPermission, noWindow, noScreen }
@@ -28,20 +28,8 @@ final class WindowManager {
         }
     }
 
-    static var hasPermission: Bool { AXIsProcessTrusted() }
-
-    /// Shows the system Accessibility prompt (once; macOS remembers the answer).
-    @discardableResult
-    static func ensurePermission() -> Bool {
-        AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
-    }
-
-    static func openAccessibilitySettings() {
-        NSWorkspace.shared.open(SettingsPane.privacyURL("Privacy_Accessibility"))
-    }
-
     func apply(_ layout: WindowLayout) throws {
-        guard Self.hasPermission else { throw Failure.noPermission }
+        guard Accessibility.isTrusted else { throw Failure.noPermission }
         guard let window = targetWindow(), let current = AX.frame(of: window) else { throw Failure.noWindow }
         let screens = Self.screensInAXSpace()
         guard let screen = Self.screen(containing: current, in: screens) else { throw Failure.noScreen }
