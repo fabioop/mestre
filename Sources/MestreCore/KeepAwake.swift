@@ -86,11 +86,8 @@ public enum KeepAwakeParser {
         return duration(trimmed).map { .duration($0) }
     }
 
-    private static let unitSeconds: [String: TimeInterval] = [
-        "h": 3600, "hr": 3600, "hrs": 3600, "hour": 3600, "hours": 3600,
-        "m": 60, "min": 60, "mins": 60, "minute": 60, "minutes": 60,
-        "s": 1, "sec": 1, "secs": 1, "second": 1, "seconds": 1,
-    ]
+    private static let unitSeconds = ClockTime.minuteAndHourSeconds
+        .merging(["s": 1, "sec": 1, "secs": 1, "second": 1, "seconds": 1]) { current, _ in current }
 
     private static let durationRegex = #/(\d+(?:\.\d+)?)\s*([a-z]*)\s*/#
 

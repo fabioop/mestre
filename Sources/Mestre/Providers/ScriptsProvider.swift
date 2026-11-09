@@ -356,7 +356,7 @@ final class ScriptsProvider: ResultProvider {
             existing = directories.filter { FileManager.default.fileExists(atPath: $0.path, isDirectory: &isDirectory) && isDirectory.boolValue }
             var entries: [String: Entry] = [:]
             var changed = false
-            for file in existing.isEmpty ? [] : ScriptIndex.files(in: existing) {
+            for file in ScriptIndex.files(in: existing) {
                 let known = previous[file.path]
                 if let known, known.modified == file.modified, file.modified != nil {
                     entries[file.path] = known

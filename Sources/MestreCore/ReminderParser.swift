@@ -165,16 +165,12 @@ private struct Scanner {
     /// Months that are also names or words ("ask may 3 questions"): before the day number only
     /// after a connector ("on may 3"); "3 may" is always a date.
     static let ambiguousMonths: Set<String> = ["may", "mar", "march"]
-    static let months: [String: Int] = [
-        "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3, "apr": 4, "april": 4, "may": 5,
-        "jun": 6, "june": 6, "jul": 7, "july": 7, "aug": 8, "august": 8, "sep": 9, "sept": 9, "september": 9,
-        "oct": 10, "october": 10, "nov": 11, "november": 11, "dec": 12, "december": 12,
-    ]
+    static let months = ClockTime.months
+    // Built once: a regex literal inside a function is compiled again on every call.
+    private static let isoDate = #/(\d{4})-(\d{1,2})-(\d{1,2})/#
+    private static let ordinalDay = #/(\d{1,2})(st|nd|rd|th)?,?/#
     static let partsOfDay: [String: (hour: Int, minute: Int)] = ["morning": (9, 0), "afternoon": (15, 0), "evening": (18, 0), "night": (20, 0)]
-    static let units: [String: TimeInterval] = [
-        "m": 60, "min": 60, "mins": 60, "minute": 60, "minutes": 60,
-        "h": 3600, "hr": 3600, "hrs": 3600, "hour": 3600, "hours": 3600,
-    ]
+    static let units = ClockTime.minuteAndHourSeconds
     static let dayUnits: [String: Int] = ["d": 1, "day": 1, "days": 1, "w": 7, "wk": 7, "wks": 7, "week": 7, "weeks": 7]
 
     mutating func run() {
@@ -298,7 +294,7 @@ private struct Scanner {
     /// "7 nov", "7th november", "nov 7", "november 7th", each with an optional year; "2026-11-20".
     private func calendarDate(at index: Int, afterConnector: Bool) -> (Date, Int)? {
         guard let word = token(index) else { return nil }
-        if word.first?.isASCIIDigit == true, word.contains("-"), let match = word.wholeMatch(of: #/(\d{4})-(\d{1,2})-(\d{1,2})/#), let year = Int(match.1), let month = Int(match.2), let day = Int(match.3) {
+        if word.first?.isASCIIDigit == true, word.contains("-"), let match = word.wholeMatch(of: Self.isoDate), let year = Int(match.1), let month = Int(match.2), let day = Int(match.3) {
             return date(year: year, month: month, day: day).map { ($0, index + 1) }
         }
         guard let next = token(index + 1),
@@ -324,7 +320,7 @@ private struct Scanner {
 
     /// "7", "7th", "1st", "22nd" → 7, 1, 22.
     private func dayNumber(_ word: String) -> Int? {
-        guard word.first?.isASCIIDigit == true, let match = word.wholeMatch(of: #/(\d{1,2})(st|nd|rd|th)?,?/#), let value = Int(match.1), (1...31).contains(value) else { return nil }
+        guard word.first?.isASCIIDigit == true, let match = word.wholeMatch(of: Self.ordinalDay), let value = Int(match.1), (1...31).contains(value) else { return nil }
         return value
     }
 

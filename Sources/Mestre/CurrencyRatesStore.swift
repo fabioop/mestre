@@ -29,8 +29,9 @@ final class CurrencyRatesStore {
     func refreshIfNeeded(settings: Config.Calculator) {
         guard !isBusy else { return }
         if settings.ratesURL != lastURL {
-            // Another source: whatever failed or was cached for the old one doesn't count.
-            if lastURL != nil { lastAttempt = nil; rates = nil; loadedFromDisk = true }
+            // Another source: a failure of the old one doesn't hold this one back. The old rates stay
+            // until the new ones arrive (`isStale` sees the other source), as they would after a relaunch.
+            lastAttempt = nil
             lastURL = settings.ratesURL
         }
         if let lastAttempt, Date().timeIntervalSince(lastAttempt) < retryInterval { return }

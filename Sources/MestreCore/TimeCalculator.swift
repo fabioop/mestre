@@ -95,16 +95,11 @@ public enum TimeCalculator {
     }()
 
     static let months: [String: Int] = {
-        var table: [String: Int] = [:]
-        let english = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
+        var table = ClockTime.months
         let portuguese = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
-        for (index, name) in english.enumerated() {
-            table[name] = index + 1
-            table[String(name.prefix(3))] = index + 1
-            table[portuguese[index]] = index + 1
-        }
+        for (index, name) in portuguese.enumerated() { table[name] = index + 1 }
         // "set" and "out" are English words, so Portuguese September and October need their full names.
-        for (name, month) in ["sept": 9, "marco": 3, "fev": 2, "abr": 4, "mai": 5, "ago": 8, "dez": 12] { table[name] = month }
+        for (name, month) in ["marco": 3, "fev": 2, "abr": 4, "mai": 5, "ago": 8, "dez": 12] { table[name] = month }
         return table
     }()
 

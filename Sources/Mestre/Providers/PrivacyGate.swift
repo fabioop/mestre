@@ -39,6 +39,13 @@ final class PrivacyGate {
     /// Call from `panelWillShow`, so a grant or a refusal in System Settings shows on the next open.
     func reset() { cached = nil }
 
+    /// Stores a status the provider read off the main thread, for a check that is slow IPC (Contacts).
+    /// True when it differs from the last one known.
+    func update(_ status: Status) -> Bool {
+        defer { cached = status }
+        return cached != nil && cached != status
+    }
+
     /// Nil once access is granted; else what the provider shows instead of its rows: nothing while
     /// macOS asks (first use), the row pointing to System Settings once refused.
     func blockingRows(provider: any ResultProvider) -> [ScoredItem]? {
@@ -46,7 +53,7 @@ final class PrivacyGate {
         case .granted:
             return nil
         case .undetermined:
-            requestAccess(then: { [weak provider] in provider?.onChange?() })
+            requestAccess { [weak provider] in provider?.onChange?() }
             return []
         case .denied:
             return ScoredItem.pinned([row], provider: provider)
@@ -54,14 +61,14 @@ final class PrivacyGate {
     }
 
     /// Asks macOS once at a time; `then` runs after the answer, with the status read afresh.
-    func requestAccess(then done: (() -> Void)? = nil) {
+    private func requestAccess(then done: @escaping () -> Void) {
         guard !isRequesting else { return }
         isRequesting = true
         Task {
             await request()
             isRequesting = false
             cached = nil
-            done?()
+            done()
         }
     }
 }

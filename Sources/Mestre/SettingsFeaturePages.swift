@@ -205,7 +205,7 @@ private struct CalculatorOptions: View {
         Toggle("Date maths, like today + 90d", isOn: $settings.config.calculator.dates).setting("calculator.dates")
         if settings.config.calculator.currency {
             KeywordField(label: "Default currency", value: $settings.config.calculator.defaultCurrency, placeholder: Locale.current.currency?.identifier ?? "EUR").setting("calculator.defaultCurrency")
-            Caption("Reference rates from the European Central Bank, downloaded once a day and only after you type a currency conversion.")
+            Caption("Rates come from \(URL(string: settings.config.calculator.ratesURL)?.host ?? "calculator.ratesURL"), downloaded once a day and only after you type a currency conversion.")
         }
     }
 }

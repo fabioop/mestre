@@ -94,8 +94,9 @@ public enum UnitConversion {
         let apart = left.hasSuffix(" " + sourceName)
         guard apart || sourceName.count >= 2 else { return [] }
         let sources = self.units(named: sourceName, minPrefix: apart ? 2 : nil, preference: preference)
+        let named = targetName.flatMap { $0.isEmpty ? nil : self.units(named: $0, minPrefix: 1, preference: preference) }
         let pairs = sources.flatMap { source -> [(Unit, Unit)] in
-            let wanted = targetName.flatMap { $0.isEmpty ? nil : self.units(named: $0, minPrefix: 1, preference: preference) } ?? preference.defaults(for: source)
+            let wanted = named ?? preference.defaults(for: source)
             let compatibleTargets = wanted.compactMap { target -> (Unit, Unit)? in
                 // "Pounds" is money until the other side says it's a weight.
                 let pair = (poundsAsWeight(source, named: sourceName, against: target), target)
@@ -355,7 +356,10 @@ public struct CurrencyRates: Codable, Equatable, Sendable {
             let code = code.uppercased()
             if knownCodes.contains(code), let rate = (value as? NSNumber)?.doubleValue, rate.isFinite, rate > 0 { rates[code] = rate }
         }
-        let date = (object["date"] as? String) ?? (object["time_last_update_utc"] as? String) ?? ""
+        // open.er-api.com gives a full RFC 1123 timestamp; its Unix twin becomes the same "2026-11-07" form.
+        let date = (object["date"] as? String)
+            ?? (object["time_last_update_unix"] as? NSNumber).map { ISO8601DateFormatter.string(from: Date(timeIntervalSince1970: $0.doubleValue), timeZone: .gmt, formatOptions: .withFullDate) }
+            ?? (object["time_last_update_utc"] as? String) ?? ""
         return rates.count > 1 ? CurrencyRates(date: date, fetchedAt: fetchedAt, rates: rates) : nil
     }
 

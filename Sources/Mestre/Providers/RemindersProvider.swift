@@ -152,7 +152,6 @@ final class RemindersProvider: ResultProvider {
         return draft
     }
 
-    private func eventStore() async -> EKEventStore { await SharedEventStore.get() }
 
     /// Asks macOS the first time, then opens System Settings; also for Settings.
     func requestAccess() async {
@@ -172,7 +171,7 @@ final class RemindersProvider: ResultProvider {
         isLoading = true
         let generation = loadGeneration
         Task {
-            let store = await eventStore()
+            let store = await SharedEventStore.get()
             watchForChanges()
             let (loaded, names, fallback) = await Task.detached(priority: .userInitiated) { await Self.read(store) }.value
             isLoading = false
@@ -196,8 +195,8 @@ final class RemindersProvider: ResultProvider {
 
     /// Lists new reminders can go to, for Settings. Empty until access is granted.
     func listNames() async -> [String] {
-        guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess else { return [] }
-        let store = await eventStore()
+        guard SharedEventStore.status(for: .reminder) == .granted else { return [] }
+        let store = await SharedEventStore.get()
         return await Task.detached(priority: .userInitiated) { Self.writableLists(in: store).map(\.title) }.value
     }
 
@@ -304,7 +303,7 @@ final class RemindersProvider: ResultProvider {
         dismiss?()
         let defaultList = settings.defaultList
         Task {
-            let store = await eventStore()
+            let store = await SharedEventStore.get()
             let saved = await Task.detached(priority: .userInitiated) { Self.save(item.draft, chosen: item.list, defaultList: defaultList, in: store) }.value
             if !saved { NSSound.beep() }
         }
@@ -317,7 +316,7 @@ final class RemindersProvider: ResultProvider {
         onChange?()
         Feedback.toast("Completed")
         Task {
-            let store = await eventStore()
+            let store = await SharedEventStore.get()
             let done = await Task.detached(priority: .userInitiated) { Self.markCompleted(reminder.id, in: store) }.value
             if !done {
                 NSSound.beep()

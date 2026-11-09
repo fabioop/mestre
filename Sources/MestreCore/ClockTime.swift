@@ -5,6 +5,23 @@ import Foundation
 public enum ClockTime {
     static let meridiems = ["am", "pm", "a.m.", "p.m."]
 
+    /// English month names, their three-letter forms and "sept" → 1...12.
+    static let months: [String: Int] = {
+        let names = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
+        var table = ["sept": 9]
+        for (index, name) in names.enumerated() {
+            table[name] = index + 1
+            table[String(name.prefix(3))] = index + 1
+        }
+        return table
+    }()
+
+    /// Minutes and hours as people abbreviate them, in seconds.
+    static let minuteAndHourSeconds: [String: TimeInterval] = [
+        "m": 60, "min": 60, "mins": 60, "minute": 60, "minutes": 60,
+        "h": 3600, "hr": 3600, "hrs": 3600, "hour": 3600, "hours": 3600,
+    ]
+
     /// "18:30", "6pm", "6:15 pm", "9am", "18" → hour and minute; nil for anything else.
     /// Minutes take two digits ("9:5" is a typo, not 09:05); am/pm needs an hour of 1 to 12.
     public static func parse(_ text: String) -> (hour: Int, minute: Int)? {

@@ -154,7 +154,8 @@ import Testing
         try write("no header", to: dir.appendingPathComponent("README.md"))
         try FileManager.default.createDirectory(at: dir.appendingPathComponent("sub"), withIntermediateDirectories: true)
         try write("#!/bin/sh\n# @raycast.title Nested\n", to: dir.appendingPathComponent("sub/n.sh"))
-        let titles = ScriptIndex.scan([dir, dir, dir.appendingPathComponent("missing")]).map(\.title)
+        let files = ScriptIndex.files(in: [dir, dir, dir.appendingPathComponent("missing")])
+        let titles = files.compactMap { ScriptIndex.command(at: $0.path) }.sorted(by: ScriptIndex.precedes).map(\.title)
         #expect(titles == ["alpha", "Beta"])
     }
 

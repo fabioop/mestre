@@ -32,8 +32,8 @@ final class ContactsProvider: ResultProvider {
             mode = KeywordMode(enabled: settings.enabled, keyword: settings.keyword, needsSpace: true)
             if !settings.enabled {
                 index = nil
-            } else if index == nil, gate.isGranted {
-                load()
+            } else if index == nil {
+                refreshAccess()
             }
         }
     }
@@ -58,7 +58,7 @@ final class ContactsProvider: ResultProvider {
     private var isStale = false
     private var isWatching = false
 
-    private static func authorization() -> PrivacyGate.Status {
+    private nonisolated static func authorization() -> PrivacyGate.Status {
         switch CNContactStore.authorizationStatus(for: .contacts) {
         case .authorized: return .granted
         case .notDetermined: return .undetermined
@@ -79,17 +79,26 @@ final class ContactsProvider: ResultProvider {
         return query.remainder.isEmpty ? "No contacts" : "No matching contacts"
     }
 
-    func panelWillShow() {
-        gate.reset()
+    func panelWillShow() { refreshAccess() }
+
+    /// Re-reads the permission off the main thread (the check is IPC to the contacts daemon, about
+    /// 14 ms each time) and then reads the contacts if they are missing or stale.
+    private func refreshAccess() {
         guard settings.enabled else { return }
-        switch gate.status {
-        case .granted:
-            if index == nil || isStale { load() }
-        case .undetermined:
-            break
-        case .denied:
-            // Access taken back in System Settings: forget what was read.
-            index = nil
+        Task {
+            let status = await Task.detached(priority: .userInitiated) { Self.authorization() }.value
+            let changed = gate.update(status)
+            guard settings.enabled else { return }
+            switch status {
+            case .granted:
+                if index == nil || isStale { load() }
+            case .undetermined:
+                break
+            case .denied:
+                // Access taken back in System Settings: forget what was read.
+                index = nil
+            }
+            if changed { onChange?() }
         }
     }
 
@@ -118,11 +127,16 @@ final class ContactsProvider: ResultProvider {
 
     /// The prompt; the keyword's next search, which the gate triggers, reads the contacts.
     private func requestAccess() async {
-        let existing = store
-        // Connecting to the contacts daemon is kept off the main thread, as in `load()`.
-        let store = await Task.detached(priority: .userInitiated) { existing ?? CNContactStore() }.value
-        self.store = store
-        _ = try? await store.requestAccess(for: .contacts)
+        _ = try? await contactStore().requestAccess(for: .contacts)
+    }
+
+    /// The one store, made on first use. Connecting to the contacts daemon is kept off the main thread.
+    private func contactStore() async -> CNContactStore {
+        if let store { return store }
+        let made = await Task.detached(priority: .userInitiated) { CNContactStore() }.value
+        if let store { return store }
+        store = made
+        return made
     }
 
     /// Reads every contact. A change that arrives during the read marks the index stale again.
@@ -130,13 +144,9 @@ final class ContactsProvider: ResultProvider {
         guard !isLoading else { return }
         isLoading = true
         isStale = false
-        let existing = store
         Task {
-            let (store, loaded) = await Task.detached(priority: .utility) { () -> (CNContactStore, ContactIndex) in
-                let store = existing ?? CNContactStore()
-                return (store, ContactIndex(Self.read(store)))
-            }.value
-            self.store = store
+            let store = await contactStore()
+            let loaded = await Task.detached(priority: .utility) { ContactIndex(Self.read(store)) }.value
             isLoading = false
             watchForChanges()
             if settings.enabled, gate.isGranted {

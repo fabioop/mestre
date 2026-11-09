@@ -102,8 +102,6 @@ public struct ContactIndex: Sendable {
         phones = builder.phones
     }
 
-    public var count: Int { records.count }
-
     /// The best `limit` contacts for `query`, best first; the first `limit` by name when it is empty.
     /// `wordsOnly`, for ordinary searches among apps: no initials or letters-in-order matches,
     /// and digits only search phones when typed as a number ("+351 912"), not as arithmetic.

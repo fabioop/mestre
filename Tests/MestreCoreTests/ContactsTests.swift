@@ -189,7 +189,7 @@ import Testing
         let index = ContactIndex(Self.records)
         let elapsed = ContinuousClock.now - start
         print("indexing 5 000 contacts: \(elapsed)")
-        #expect(index.count == 5_000)
+        #expect(index.records.count == 5_000)
         // Off the main thread, but still well under the 1 s index budget.
         #expect(elapsed < (ProcessInfo.processInfo.environment["CI"] == nil ? .seconds(2) : .seconds(10)))
     }

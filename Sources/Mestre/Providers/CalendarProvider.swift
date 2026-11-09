@@ -99,7 +99,6 @@ final class CalendarProvider: ResultProvider {
     }
 
     /// Shared with Reminders, made off the main thread on first use.
-    private func eventStore() async -> EKEventStore { await SharedEventStore.get() }
 
     func panelWillShow() { gate.reset() }
 
@@ -115,7 +114,7 @@ final class CalendarProvider: ResultProvider {
         let settings = settings
         let generation = loadGeneration
         Task {
-            let store = await eventStore()
+            let store = await SharedEventStore.get()
             watchForChanges()
             let (loaded, found) = await Task.detached(priority: .userInitiated) { Self.read(store, settings: settings) }.value
             isLoading = false
@@ -140,8 +139,8 @@ final class CalendarProvider: ResultProvider {
 
     /// Every calendar macOS knows about, for Settings. Empty until access is granted.
     func sources() async -> [CalendarSource] {
-        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else { return [] }
-        let store = await eventStore()
+        guard SharedEventStore.status(for: .event) == .granted else { return [] }
+        let store = await SharedEventStore.get()
         return await Task.detached(priority: .userInitiated) {
             store.calendars(for: .event)
                 .map { CalendarSource(account: $0.source?.title ?? "", name: $0.title) }

@@ -290,11 +290,6 @@ public enum ScriptIndex {
         return ScriptParser.parse(String(decoding: data, as: UTF8.self), path: path)
     }
 
-    /// Every script in `directories`, by title.
-    public static func scan(_ directories: [URL], fileManager: FileManager = .default) -> [ScriptCommand] {
-        files(in: directories, fileManager: fileManager).compactMap { command(at: $0.path) }.sorted(by: precedes)
-    }
-
     /// The listing's order: by title, case-insensitively, then by path, so it never shuffles.
     public static func precedes(_ a: ScriptCommand, _ b: ScriptCommand) -> Bool {
         let order = a.title.localizedCaseInsensitiveCompare(b.title)
